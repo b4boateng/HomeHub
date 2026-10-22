@@ -1,0 +1,9 @@
+id,type,name,room,watts,priority
+L1,LIGHT,Hall Light,hallway,12,1
+L2,LIGHT,Lounge Light,living,40,1
+AC1,THERMOSTAT,Living AC,living,1500,2
+H1,PLUG,Water Heater,kitchen,2000,3
+OV1,PLUG,Oven,kitchen,2200,2
+D1,LOCK,Front Door,hallway,0,1
+M1,MOTION,Hall Motion,hallway,0,1
+TS1,TEMPERATURE,Living Temp,living,0,1

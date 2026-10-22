@@ -1,0 +1,4 @@
+id,eventType,source,minValue,windowStart,windowEnd,deviceId,command,priority
+R1,MOTION,M1,1,22:00,06:00,L1,ON,1
+R2,TEMPERATURE,TS1,26,,,AC1,ON,1
+R3,MOTION,M1,1,,,L2,ON,1
