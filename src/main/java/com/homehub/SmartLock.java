@@ -48,10 +48,10 @@ public class SmartLock extends Devices implements Controllable{
             case LOCK ->   setLockStatus(true);
             
             case UNLOCK ->   setLockStatus(false);
-                
 
-    };
+            default -> throw new IllegalStateException("Unsupported action: " + command.action());
         }
+    }
 
     
 
