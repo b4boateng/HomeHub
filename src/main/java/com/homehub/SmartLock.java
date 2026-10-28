@@ -58,7 +58,7 @@ public class SmartLock extends Devices implements Controllable{
    @Override 
     public boolean supports(Action action){
        return switch (action) {
-        case  LOCK , UNLOCK, SOUND_ALARM -> true;
+        case  LOCK , UNLOCK -> true;
         default -> false;
     };
 

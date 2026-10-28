@@ -105,6 +105,6 @@ public class SmartTv extends Devices implements Controllable, EnergyReporting, P
 
     @Override
     public double currentPowerWatts() {
-        return ratedWatts;
+        return  isOnline() ? ratedWatts : 0;
     }
 }

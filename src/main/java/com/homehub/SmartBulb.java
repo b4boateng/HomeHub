@@ -37,7 +37,7 @@ public class SmartBulb extends Devices implements Controllable, EnergyReporting 
     // will implement this later
     @Override 
     public double currentPowerWatts(){
-        return ratedWatts;
+        return  isOnline() ? ratedWatts : 0;
     }
 
     public int getBrightness() {

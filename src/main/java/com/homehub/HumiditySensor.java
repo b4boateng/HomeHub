@@ -1,6 +1,6 @@
 package com.homehub;
 import java.util.Random;
-import java.util.random.*;
+
 
 public class HumiditySensor  extends Devices implements Sensing{
     private int humidity;
