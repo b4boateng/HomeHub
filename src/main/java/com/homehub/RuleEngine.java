@@ -9,15 +9,29 @@ public class RuleEngine {
     private final DeviceRegistry registry;
     private final List<Rule> rules = new ArrayList<>();
     private final Consumer<String> log;
+    private final PowerPolicy powerPolicy;
 
-    public RuleEngine(DeviceRegistry registry, EventBus bus, Consumer<String> log) {
+    public RuleEngine(DeviceRegistry registry, EventBus bus, PowerPolicy powerPolicy, Consumer<String> log) {
         this.registry = registry;
+        this.powerPolicy = powerPolicy;
         this.log = log;
         bus.subscribe(this::handle);
     }
 
     public void addRule(Rule rule) {
+        ConflictDetector.check(rule, rules);
         rules.add(rule);
+    }
+
+    // Total watts the house is drawing right now.
+    private double currentLoad() {
+        double total = 0;
+        for (Devices d : registry.all()) {
+            if (d instanceof EnergyReporting meter) {
+                total += meter.currentPowerWatts();
+            }
+        }
+        return total;
     }
 
     private void handle(Event event) {
@@ -53,10 +67,14 @@ public class RuleEngine {
         }
 
         try {
+            // Only a device that is currently off adds load when turned on.
+            if (command.action() == Action.TURN_ON && !device.isOnline()) {
+                powerPolicy.require(currentLoad(), device.getRatedWatts());
+            }
             controllable.execute(command);
             log.accept("Applied " + command.action() + " to " + device.getName()
                     + " (priority " + rule.getPriority() + ", triggered by " + event.type() + ")");
-        } catch (IllegalStateException ex) {
+        } catch (IllegalStateException | HomeHubException ex) {
             log.accept("Failed: " + command.action() + " on " + device.getName() + ": " + ex.getMessage());
         }
     }

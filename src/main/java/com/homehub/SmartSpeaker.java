@@ -72,7 +72,7 @@ public class SmartSpeaker extends Devices implements Controllable, EnergyReporti
     @Override
     public void play() {
         if (!isOnline()) {
-            throw new IllegalStateException("Speaker is offline");
+            throw new DeviceOfflineException(getName());
         }
         playbackState = PlaybackState.PLAYING;
     }

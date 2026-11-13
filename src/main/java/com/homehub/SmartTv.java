@@ -79,7 +79,7 @@ public class SmartTv extends Devices implements Controllable, EnergyReporting, P
     @Override
     public void play() {
         if (!isOnline()) {
-            throw new IllegalStateException("TV is offline");
+            throw new DeviceOfflineException(getName());
         }
         playbackState = PlaybackState.PLAYING;
     }

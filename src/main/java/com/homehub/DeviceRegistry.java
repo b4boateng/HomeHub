@@ -18,7 +18,7 @@ public class DeviceRegistry {
    public Devices get(String id){
         Devices dev = devices.get(id);
         if (dev == null) {
-            throw new IllegalArgumentException("No device with id: " + id);
+            throw new DeviceNotFoundException(id);
         }
         return dev;
    }
