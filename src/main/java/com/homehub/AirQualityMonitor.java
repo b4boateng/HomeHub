@@ -1,5 +1,7 @@
 package com.homehub;
 
+import java.util.Random;
+
 public class AirQualityMonitor extends Devices implements Sensing{
     private int oxygenLevel;    
     private int carbonMonoxideLevel;
@@ -49,14 +51,17 @@ public class AirQualityMonitor extends Devices implements Sensing{
         
     }
 
+ 
+    private static int randomBetween(int min, int max) {
+        return new Random().nextInt(max - min + 1) + min;
+    }
+
     @Override
     public void readValue(){
-        getCarbonDioxideLevel();
-        getCarbonMonoxideLevel();
-        getOxygenLevel();
-        getTemperature();
-        getPm25();
-
+        carbonDioxideLevel = randomBetween(minCarbonDioxide, maxCarbonDioxide);
+        carbonMonoxideLevel = randomBetween(minCarbonMonoxide, maxCarbonMonoxide);
+        temperature = randomBetween(minTemperature, maxTemperature);
+        System.out.println("Air: CO2=" + carbonDioxideLevel + " CO=" + carbonMonoxideLevel + " temp=" + temperature);
     }
 
 }
