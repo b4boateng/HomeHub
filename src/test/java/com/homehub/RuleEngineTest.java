@@ -37,24 +37,22 @@ class RuleEngineTest {
         return log.stream().anyMatch(line -> line.contains(text));
     }
 
-    // ----- Lab 2 checkpoint -----
-
     @Test
-    void nightTimeMotionTurnsTheLightOn() {                          // normal
+    void nightTimeMotionTurnsTheLightOn() {
         engine.addRule(new Rule(NIGHT, "b1", new Command(Action.TURN_ON), 1));
         motionAt(23, 30);
         assertTrue(light.isOnline());
     }
 
     @Test
-    void theSameMotionAtNoonDoesNotTurnTheLightOn() {                // normal
+    void theSameMotionAtNoonDoesNotTurnTheLightOn() {
         engine.addRule(new Rule(NIGHT, "b1", new Command(Action.TURN_ON), 1));
         motionAt(12, 0);
         assertFalse(light.isOnline());
     }
 
     @Test
-    void motionExactlyAtTheWindowStartCountsButAtTheEndDoesNot() {   // edge
+    void motionExactlyAtTheWindowStartCountsButAtTheEndDoesNot() {
         engine.addRule(new Rule(NIGHT, "b1", new Command(Action.TURN_ON), 1));
         motionAt(6, 0);
         assertFalse(light.isOnline());
@@ -62,18 +60,14 @@ class RuleEngineTest {
         assertTrue(light.isOnline());
     }
 
-    // ----- priority -----
-
     @Test
-    void whenRulesClashTheHighestPriorityNumberWins() {              // edge: lowest applied first, highest last
+    void whenRulesClashTheHighestPriorityNumberWins() {
         engine.addRule(new Rule(e -> true, "b1", new Command(Action.TURN_ON), 1));
         engine.addRule(new Rule(e -> true, "b1", new Command(Action.TURN_OFF), 2));
         light.setOnline(true);
         motionAt(12, 0);
         assertFalse(light.isOnline());
     }
-
-    // ----- invalid / unusual input: the engine logs and keeps going -----
 
     @Test
     void eventWithNoMatchingRuleIsLogged() {
@@ -98,8 +92,8 @@ class RuleEngineTest {
     @Test
     void aFailingRuleDoesNotStopTheRulesAfterIt() {
         registry.register(new SmartTv("t1", "TV", "Samsung", false, "Lounge", "QN", 120, 20, false, "", 1));
-        engine.addRule(new Rule(e -> true, "t1", new Command(Action.PLAY), 1));    // TV is off, so this fails
-        engine.addRule(new Rule(e -> true, "b1", new Command(Action.TURN_ON), 2)); // still runs
+        engine.addRule(new Rule(e -> true, "t1", new Command(Action.PLAY), 1));
+        engine.addRule(new Rule(e -> true, "b1", new Command(Action.TURN_ON), 2));
         motionAt(12, 0);
         assertTrue(logHas("Failed"));
         assertTrue(light.isOnline());

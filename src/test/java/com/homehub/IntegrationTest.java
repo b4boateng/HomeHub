@@ -15,8 +15,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-// Real classes working together, nothing faked:
-// loaders + registry + rules + time windows + bus + engine + power limit + simulation + accountant.
 class IntegrationTest {
 
     private static final LocalDateTime START = LocalDateTime.of(2026, 10, 27, 20, 0);
@@ -25,7 +23,6 @@ class IntegrationTest {
     @TempDir
     Path folder;
 
-    // A fresh house wiring before every test; each test adds its own devices and rules.
     private DeviceRegistry registry;
     private EventBus bus;
     private List<String> log;
@@ -53,8 +50,6 @@ class IntegrationTest {
         return new Event(EventType.MOTION, when, "m1", 1);
     }
 
-    // ===== files -> loaders -> rules -> time window -> simulation -> energy =====
-
     @Test
     void csvFilesDriveTheWholeSimulationAndTheEnergyIsBilled() throws IOException {
         write("devices.csv", "type,id,name,brand,model,room,watts,online",
@@ -62,8 +57,8 @@ class IntegrationTest {
         write("rules.csv", "eventType,source,minValue,windowStart,windowEnd,deviceId,action,priority",
                 "MOTION,m1,1,22:00,06:00,b1,TURN_ON,1");
         write("events.csv", "timestamp,type,source,value",
-                "2026-10-27T23:00,MOTION,m1,1",     // night: light turns on (listed first on purpose)
-                "2026-10-27T12:00,MOTION,m1,1");    // noon: rule must not fire
+                "2026-10-27T23:00,MOTION,m1,1",
+                "2026-10-27T12:00,MOTION,m1,1");
 
         new DevicesLoader().load(folder.resolve("devices.csv")).forEach(registry::register);
         RuleEngine engine = engineWithLimit(1000);
@@ -75,7 +70,6 @@ class IntegrationTest {
         sim.run(LocalDateTime.of(2026, 10, 28, 1, 0));
 
         assertTrue(registry.get("b1").isOnline());
-        // off from 12:00 to 23:00 (nothing), on from 23:00 to 01:00 (2 h x 60 W)
         assertEquals(0.12, accountant.getKwhByDevice().get("b1"), 1e-9);
     }
 
@@ -107,8 +101,6 @@ class IntegrationTest {
         assertTrue(output.contains("devices.csv line 2"), output);
     }
 
-    // ===== power limit + rules + registry =====
-
     @Test
     void powerLimitRefusesTheLightThatWouldGoOverButAllowsOneExactlyAtTheLimit() {
         SmartBulb first = bulb("b1", 60, false);
@@ -118,9 +110,9 @@ class IntegrationTest {
         registry.register(second);
         registry.register(third);
         RuleEngine engine = engineWithLimit(100);
-        engine.addRule(new Rule(ALWAYS, "b1", new Command(Action.TURN_ON), 1));   // 0 + 60  = 60   ok
-        engine.addRule(new Rule(ALWAYS, "b2", new Command(Action.TURN_ON), 2));   // 60 + 60 = 120  refused
-        engine.addRule(new Rule(ALWAYS, "b3", new Command(Action.TURN_ON), 3));   // 60 + 40 = 100  exactly at limit
+        engine.addRule(new Rule(ALWAYS, "b1", new Command(Action.TURN_ON), 1));
+        engine.addRule(new Rule(ALWAYS, "b2", new Command(Action.TURN_ON), 2));
+        engine.addRule(new Rule(ALWAYS, "b3", new Command(Action.TURN_ON), 3));
 
         bus.publish(motionAt(START));
 
@@ -152,16 +144,14 @@ class IntegrationTest {
         registry.register(a);
         registry.register(b);
         RuleEngine engine = engineWithLimit(100);
-        engine.addRule(new Rule(ALWAYS, "a", new Command(Action.TURN_OFF), 1));   // frees 60 W first
-        engine.addRule(new Rule(ALWAYS, "b", new Command(Action.TURN_ON), 2));    // then 0 + 60 fits
+        engine.addRule(new Rule(ALWAYS, "a", new Command(Action.TURN_OFF), 1));
+        engine.addRule(new Rule(ALWAYS, "b", new Command(Action.TURN_ON), 2));
 
         bus.publish(motionAt(START));
 
         assertFalse(a.isOnline());
         assertTrue(b.isOnline());
     }
-
-    // ===== rules + conflict detector + engine =====
 
     @Test
     void aConflictingRuleIsRejectedAndTheExistingRuleKeepsWorking() {
@@ -188,8 +178,6 @@ class IntegrationTest {
         engine.addRule(rules.get(0));
         assertThrows(RuleConflictException.class, () -> engine.addRule(rules.get(1)));
     }
-
-    // ===== different device types reacting to events =====
 
     @Test
     void oneEventCanLockTheDoorAndTurnOnALight() {
@@ -231,11 +219,9 @@ class IntegrationTest {
 
         sim.run(START.plusHours(2));
 
-        assertTrue(log.get(0).contains("MOTION from m1"), log.toString());   // simulation line first
-        assertTrue(log.get(1).startsWith("Applied TURN_ON"), log.toString()); // then the engine's reaction
+        assertTrue(log.get(0).contains("MOTION from m1"), log.toString());
+        assertTrue(log.get(1).startsWith("Applied TURN_ON"), log.toString());
     }
-
-    // ----- helper -----
 
     private String runApplication() {
         PrintStream original = System.out;

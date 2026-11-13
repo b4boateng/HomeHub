@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-// Each exception on its own: what its message says, and that it belongs to the HomeHub family.
 class ExceptionMessagesTest {
 
     @Test

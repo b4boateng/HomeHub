@@ -10,7 +10,6 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-// Loader behaviour that LoadersTest doesn't cover: every device type, rule matching details, bad cells.
 class LoaderDetailsTest {
 
     @TempDir
@@ -26,8 +25,6 @@ class LoaderDetailsTest {
     private Event motion(String source, int value, int hour) {
         return new Event(EventType.MOTION, LocalDateTime.of(2026, 10, 27, hour, 0), source, value);
     }
-
-    // ----- DevicesLoader -----
 
     @Test
     void everyDeviceTypeBecomesTheRightClass() throws IOException {
@@ -80,8 +77,6 @@ class LoaderDetailsTest {
         assertTrue(ex.getMessage().contains("line 2"), ex.getMessage());
     }
 
-    // ----- RulesLoader -----
-
     @Test
     void ruleWithNoWindowMatchesAtAnyHour() throws IOException {
         Rule rule = new RulesLoader().load(write("rules.csv", RULE_HEADER, "MOTION,m1,1,,,b1,TURN_ON,1")).get(0);
@@ -93,7 +88,7 @@ class LoaderDetailsTest {
     void ruleNeedsTheValueToReachMinValue() throws IOException {
         Rule rule = new RulesLoader().load(write("rules.csv", RULE_HEADER, "MOTION,m1,5,,,b1,TURN_ON,1")).get(0);
         assertFalse(rule.matches(motion("m1", 4, 12)));
-        assertTrue(rule.matches(motion("m1", 5, 12)));      // exactly the minimum counts
+        assertTrue(rule.matches(motion("m1", 5, 12)));
     }
 
     @Test
@@ -121,8 +116,6 @@ class LoaderDetailsTest {
         assertThrows(DataLoadException.class, () -> new RulesLoader().load(badTime));
         assertThrows(DataLoadException.class, () -> new RulesLoader().load(halfWindow));
     }
-
-    // ----- EventsLoader -----
 
     @Test
     void eventsKeepTheOrderOfTheFile() throws IOException {

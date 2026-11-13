@@ -16,7 +16,7 @@ class EnergyAccountantTest {
     @BeforeEach
     void setUp() {
         registry = new DeviceRegistry();
-        accountant = new EnergyAccountant(registry, START);   // devices registered later are still seen
+        accountant = new EnergyAccountant(registry, START);
     }
 
     private SmartBulb bulb(String id, double watts, boolean on) {

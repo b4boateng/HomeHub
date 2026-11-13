@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 
-// The two Lab 3 checkpoints.
 class PowerAndEnergyTest {
 
     @Test

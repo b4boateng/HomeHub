@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-// The small getters/setters and rules of each device that DevicesTest doesn't touch.
 class DeviceDetailsTest {
 
     private SmartBulb bulb;

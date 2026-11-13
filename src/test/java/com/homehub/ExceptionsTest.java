@@ -15,8 +15,6 @@ class ExceptionsTest {
         return new SmartBulb(50, 128, id, "LB", "Bulb " + id, "Philips", "Hall", on, watts, "");
     }
 
-    // --- one test per exception ---
-
     @Test
     void offlineDeviceThrowsDeviceOfflineException() {
         SmartTv tv = new SmartTv("t1", "TV", "Samsung", false, "Lounge", "QN", 120, 20, false, "Netflix", 5);
@@ -44,27 +42,22 @@ class ExceptionsTest {
 
     @Test
     void dataLoadExceptionNamesFileAndLine() {
-        // Nothing loads files until Lab 5, so this throws it directly for now.
         DataLoadException ex = assertThrows(DataLoadException.class, () -> {
             throw new DataLoadException("devices.csv", 3, "bad number");
         });
         assertEquals("devices.csv line 3: bad number", ex.getMessage());
     }
 
-    // --- the base class ---
-
     @Test
     void everyCustomExceptionIsAHomeHubException() {
         assertThrows(HomeHubException.class, () -> new DeviceRegistry().get("nope"));
     }
 
-    // --- the exceptions doing their job inside RuleEngine ---
-
     @Test
     void ruleEngineRefusesTurnOnWhenOverLimitAndKeepsRunning() {
         DeviceRegistry registry = new DeviceRegistry();
-        registry.register(bulb("b1", true, 60));    // already drawing 60 W
-        registry.register(bulb("b2", false, 60));   // turning on would make 120 W
+        registry.register(bulb("b1", true, 60));
+        registry.register(bulb("b2", false, 60));
         EventBus bus = new EventBus();
         List<String> log = new ArrayList<>();
         RuleEngine engine = new RuleEngine(registry, bus, new PowerManager(100), log::add);

@@ -19,8 +19,6 @@ class LoadersTest {
         return Files.write(folder.resolve(name), List.of(lines));
     }
 
-    // --- normal ---
-
     @Test
     void devicesLoaderBuildsTheRightTypes() throws IOException {
         Path file = write("devices.csv",
@@ -62,8 +60,6 @@ class LoadersTest {
         assertFalse(rule.matches(new Event(EventType.MOTION, LocalDateTime.of(2026, 10, 27, 12, 0), "m1", 1)));
     }
 
-    // --- edge ---
-
     @Test
     void blankLinesAreSkipped() throws IOException {
         Path file = write("events.csv",
@@ -74,14 +70,12 @@ class LoadersTest {
         assertEquals(1, new EventsLoader().load(file).size());
     }
 
-    // --- invalid: the Lab 5 checkpoint ---
-
     @Test
     void corruptedCellNamesTheFileAndLine() throws IOException {
         Path file = write("devices.csv",
                 "type,id,name,brand,model,room,watts,online",
                 "BULB,b1,Hall Light,Philips,LB-100,Hallway,12,false",
-                "BULB,b2,Lounge Light,Philips,LB-100,Living Room,forty,false");   // line 3: "forty" is not a number
+                "BULB,b2,Lounge Light,Philips,LB-100,Living Room,forty,false");
 
         DataLoadException ex = assertThrows(DataLoadException.class, () -> new DevicesLoader().load(file));
 
