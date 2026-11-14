@@ -1,13 +1,9 @@
 package com.homehub.app;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.PrintStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
 import java.util.List;
 
 import com.homehub.automation.DeviceControl;
@@ -15,35 +11,28 @@ import com.homehub.automation.Event;
 import com.homehub.automation.EventBus;
 import com.homehub.automation.EventType;
 import com.homehub.automation.RuleEngine;
-import com.homehub.automation.Simulation;
 import com.homehub.devices.Action;
 import com.homehub.devices.Command;
 import com.homehub.devices.DeviceRegistry;
 import com.homehub.devices.Devices;
-import com.homehub.devices.HumiditySensor;
-import com.homehub.devices.MotionSensor;
-import com.homehub.devices.Sensing;
-import com.homehub.devices.SmartLock;
-import com.homehub.devices.TemperatureSensor;
-import com.homehub.energy.EnergyAccountant;
-import com.homehub.energy.EnergyRecord;
 import com.homehub.exceptions.HomeHubException;
 import com.homehub.loaders.DevicesLoader;
-import com.homehub.loaders.EnergyLoader;
+import com.homehub.service.DeviceCatalog;
+import com.homehub.service.SensorService;
+import com.homehub.service.SimulationRunner;
 
-// Menu and input only. Every decision is made by the engine, DeviceControl or the simulation.
+// Menu only: asks the questions, calls the right service and prints the answer. Every decision is made elsewhere.
 public class Console {
-
-    private static final int MAX_AMOUNT = 100;
 
     private final DeviceRegistry registry;
     private final RuleEngine engine;
     private final DeviceControl control;
     private final EventBus bus;
     private final List<Event> events;
-    private final Path devicesFile;
-    private final Path energyFile;
-    private final BufferedReader in;
+    private final DeviceCatalog catalog;
+    private final SimulationRunner runner;
+    private final SensorService sensors;
+    private final Prompter input;
     private final PrintStream out;
     private final Display display;
 
@@ -54,20 +43,19 @@ public class Console {
         this.control = control;
         this.bus = bus;
         this.events = events;
-        this.devicesFile = devicesFile;
-        this.energyFile = energyFile;
-        this.in = in;
+        this.catalog = new DeviceCatalog(registry, devicesFile);
+        this.runner = new SimulationRunner(registry, bus, energyFile);
+        this.sensors = new SensorService(registry, bus);
+        this.input = new Prompter(in, out);
         this.out = out;
         this.display = new Display(out);
     }
-
-    // ---- the menu loop ----
 
     public void run() {
         try {
             while (true) {
                 printMenu();
-                String choice = ask("Choose: ");
+                String choice = input.ask("Choose: ");
                 if (choice.equals("0")) {
                     break;
                 }
@@ -78,7 +66,7 @@ public class Console {
                     out.println("Could not do that: " + e.getMessage());
                 }
             }
-        } catch (InputEnded e) {
+        } catch (Prompter.InputEnded e) {
             // Input closed (Ctrl+D / Ctrl+Z or a pipe ended), even in the middle of a question: leave cleanly.
             out.println();
         }
@@ -106,172 +94,60 @@ public class Console {
         }
     }
 
-    // ---- 3: send a command ----
-
     private void sendCommand() {
-        String id = ask("Device id: ");
-        registry.get(id);                                   // an unknown id is reported before anything else is asked
-        Action action = askChoice("Action", Action.class);
+        String id = input.ask("Device id: ");
+        Devices target = registry.get(id);                  // an unknown id is reported before anything else is asked
+        Action action = input.askChoice("Action", Action.class);
         control.requireSupports(id, action);                // so is an action the device cannot do, such as a lock dimming
 
         // Unlocking from the console needs the lock's code (rules unlock without one: they are the owner's own automation).
-        if (action == Action.UNLOCK && registry.get(id) instanceof SmartLock lock && !lock.codeMatches(ask("Lock code: "))) {
-            throw new HomeHubException("Wrong code for " + lock.getName() + ".");
+        if (target.requiresCodeFor(action) && !target.codeMatches(input.ask("Lock code: "))) {
+            throw new HomeHubException("Wrong code for " + target.getName() + ".");
         }
-
         boolean needsAmount = action == Action.BRIGHTEN || action == Action.DIM
                 || action == Action.WARMER || action == Action.COOLER;
-        int amount = needsAmount ? askAmount() : 0;
-
-        control.send(id, new Command(action, amount));
+        control.send(id, new Command(action, needsAmount ? input.askAmount() : 0));
         out.print("OK - ");
-        display.state(registry.get(id));
+        display.state(target);
     }
 
-    // ---- 4: trigger an event ----
-
     private void triggerEvent() {
-        EventType type = askChoice("Event type", EventType.class);
-        String source = ask("Source id: ");
+        EventType type = input.askChoice("Event type", EventType.class);
+        String source = input.ask("Source id: ");
         // A door event only says it happened, so it has no reading to ask for.
-        boolean hasReading = type != EventType.DOOR_LOCKED && type != EventType.DOOR_UNLOCKED;
-        int value = hasReading ? askNumber("Value: ") : 0;
+        int value = type.hasReading() ? input.askNumber("Value: ") : 0;
         bus.publish(new Event(type, LocalDateTime.now(), source, value));
     }
 
-    // ---- 8: read the sensors ----
-
-    // Takes a new reading from every online sensor, shows it, and publishes it so any matching rule can act on it.
     private void readSensors() {
-        boolean any = false;
-        for (Devices device : registry.all()) {
-            if (device instanceof Sensing sensor && device.isOnline()) {
-                any = true;
-                sensor.readValue();
-                display.state(device);
-                // "No motion" is not an event, so it is not published.
-                if (!(device instanceof MotionSensor) || sensor.getReading() == 1) {
-                    bus.publish(new Event(eventTypeOf(device), LocalDateTime.now(), device.getId(), sensor.getReading()));
-                }
-            }
-        }
-        if (!any) {
+        if (sensors.readAll(display::state) == 0) {
             out.println("No sensors are online.");
         }
     }
-
-    private static EventType eventTypeOf(Devices sensor) {
-        if (sensor instanceof TemperatureSensor) {
-            return EventType.TEMPERATURE;
-        }
-        if (sensor instanceof HumiditySensor) {
-            return EventType.HUMIDITY;
-        }
-        return EventType.MOTION;
-    }
-
-    // ---- 5: run the simulation ----
 
     private void runSimulation() {
         if (events.isEmpty()) {
             out.println("No events to run.");
             return;
         }
-        // Read the saved history first: if energy.csv is unreadable we stop before the run changes any device.
-        EnergyLoader energyLoader = new EnergyLoader();
-        List<EnergyRecord> saved = Files.exists(energyFile) ? energyLoader.load(energyFile) : List.of();
-
-        // Start billing at the first event, otherwise the idle time before it would count as usage.
-        LocalDateTime first = events.stream().map(Event::timestamp).min(Comparator.naturalOrder()).get();
-        LocalDateTime last = events.stream().map(Event::timestamp).max(Comparator.naturalOrder()).get();
-
-        EnergyAccountant accountant = new EnergyAccountant(registry, first.truncatedTo(ChronoUnit.MINUTES));
-        Simulation simulation = new Simulation(bus, accountant, out::println);
-        events.forEach(simulation::addEvent);
-        simulation.run(last.plusHours(1));
-        display.energy(accountant.getKwhByDevice());
-
-        List<EnergyRecord> history = accountant.mergedWith(saved);
-        energyLoader.save(energyFile, history);
-        out.println("Energy history saved (" + history.size() + " hourly records).");
+        SimulationRunner.Result result = runner.run(events, out::println);
+        display.energy(result.kwhByDevice());
+        out.println("Energy history saved (" + result.savedRecords() + " hourly records).");
     }
-
-    // ---- 6 and 7: add and remove devices (memory and devices.csv always change together) ----
 
     private void addDevice() {
         String[] cells = {
-            ask("Type " + DevicesLoader.TYPES + ": ").toUpperCase(),
-            ask("Id: "), ask("Name: "), ask("Brand: "), ask("Model: "), ask("Room: "),
-            ask("Rated watts: "), ask("Online (true/false): ").toLowerCase()
+            input.ask("Type " + DevicesLoader.TYPES + ": ").toUpperCase(),
+            input.ask("Id: "), input.ask("Name: "), input.ask("Brand: "), input.ask("Model: "), input.ask("Room: "),
+            input.ask("Rated watts: "), input.ask("Online (true/false): ").toLowerCase()
         };
-        DevicesLoader loader = new DevicesLoader();
-        Devices device = loader.create(cells);
-        registry.register(device);
-        try {
-            loader.append(devicesFile, cells);
-        } catch (RuntimeException e) {
-            registry.remove(device.getId());               // it could not be saved, so it is not added
-            throw e;
-        }
+        Devices device = catalog.add(cells);
         out.print("Added and saved - ");
         display.state(device);
     }
 
     private void removeDevice() {
-        Devices removed = registry.remove(ask("Device id: "));
-        try {
-            new DevicesLoader().removeRow(devicesFile, removed.getId());
-        } catch (RuntimeException e) {
-            registry.register(removed);                    // the file could not be updated, so the device stays
-            throw e;
-        }
+        Devices removed = catalog.remove(input.ask("Device id: "));
         out.println("Removed and saved - " + removed.getName() + ".");
-    }
-
-    // ---- reading input ----
-
-    // Asks for one of an enum's values and explains the options if the answer is not one of them.
-    private <E extends Enum<E>> E askChoice(String label, Class<E> type) {
-        List<E> options = List.of(type.getEnumConstants());
-        String text = ask(label + " " + options + ": ");
-        try {
-            return Enum.valueOf(type, text.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new HomeHubException("'" + text + "' is not a valid " + label.toLowerCase() + ". Choose from " + options + ".");
-        }
-    }
-
-    private int askNumber(String prompt) {
-        String text = ask(prompt);
-        try {
-            return Integer.parseInt(text);
-        } catch (NumberFormatException e) {
-            throw new HomeHubException("'" + text + "' is not a whole number.");
-        }
-    }
-
-    private int askAmount() {
-        int amount = askNumber("Amount (0-" + MAX_AMOUNT + "): ");
-        if (amount < 0 || amount > MAX_AMOUNT) {
-            throw new HomeHubException("The amount must be between 0 and " + MAX_AMOUNT + ".");
-        }
-        return amount;
-    }
-
-    private String ask(String prompt) {
-        out.print(prompt);
-        try {
-            String line = in.readLine();
-            if (line == null) {
-                throw new InputEnded();
-            }
-            return line.trim();
-        } catch (IOException e) {
-            throw new HomeHubException("Could not read your input.");
-        }
-    }
-
-    // Thrown when the input runs out, so run() can say goodbye even in the middle of a question.
-    private static class InputEnded extends RuntimeException {
     }
 }

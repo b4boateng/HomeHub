@@ -1,5 +1,8 @@
 package com.homehub.devices;
 
+import com.homehub.automation.EventType;
+
+import java.util.Optional;
 import java.util.Random;
 
 public class TemperatureSensor extends Devices implements Sensing {
@@ -27,5 +30,20 @@ public class TemperatureSensor extends Devices implements Sensing {
     @Override
     public int getReading() {
         return temperature;
+    }
+
+    @Override
+    public String describeDetails() {
+        return ", reading " + getReading();
+    }
+
+    @Override
+    public Optional<Sensing> asSensor() {
+        return Optional.of(this);
+    }
+
+    @Override
+    public EventType eventType() {
+        return EventType.TEMPERATURE;
     }
 }

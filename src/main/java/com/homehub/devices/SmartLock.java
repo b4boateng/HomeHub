@@ -26,12 +26,23 @@ public class SmartLock extends Devices implements Controllable{
     }
 
     // The code is never handed out, only checked, so the console can ask for it before unlocking.
+    @Override
+    public boolean requiresCodeFor(Action action){
+        return action == Action.UNLOCK;
+    }
+
+    @Override
     public boolean codeMatches(String attempt){
         return code.equals(attempt);
     }
 
     public int getBatteryLevel(){
         return batteryLevel;
+    }
+
+    @Override
+    public String describeDetails() {
+        return ", " + (isLocked ? "locked" : "unlocked") + ", battery " + batteryLevel + "%";
     }
 
     @Override

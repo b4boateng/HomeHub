@@ -32,6 +32,11 @@ public class MediaPlayer extends Devices implements Controllable, EnergyReportin
         this.isMuted = isMuted;
     }
 
+    @Override
+    public String describeDetails() {
+        return ", volume " + volume + (isMuted ? " (muted)" : "") + ", " + playbackState;
+    }
+
     public PlaybackState getPlaybackState() {
         return playbackState;
     }

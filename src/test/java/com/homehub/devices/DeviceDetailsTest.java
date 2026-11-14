@@ -81,6 +81,15 @@ class DeviceDetailsTest {
     }
 
     @Test
+    void onlyUnlockingNeedsTheCodeAndOtherDevicesNeedNone() {
+        assertTrue(lock.requiresCodeFor(Action.UNLOCK));
+        assertFalse(lock.requiresCodeFor(Action.LOCK));
+        assertFalse(bulb.requiresCodeFor(Action.TURN_ON));
+        assertFalse(player.requiresCodeFor(Action.PLAY));
+        assertTrue(bulb.codeMatches("anything"));       // a device without a code never refuses
+    }
+
+    @Test
     void everyLockOrUnlockUsesOnePercentOfBattery() {
         assertEquals(90, lock.getBatteryLevel());
         lock.execute(new Command(Action.UNLOCK));

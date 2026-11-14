@@ -71,4 +71,10 @@ public class SmartBulb extends Devices implements Controllable, EnergyReporting 
         return message;
     }
 
+    @Override
+    public String describeDetails() {
+        return ", brightness " + brightness + ", colour temperature " + colorTemperature
+                + (message.isEmpty() ? "" : " (" + message + ")");
+    }
+
 }

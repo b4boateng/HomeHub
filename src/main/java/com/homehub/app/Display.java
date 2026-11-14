@@ -6,10 +6,6 @@ import java.util.Map;
 import com.homehub.automation.Rule;
 import com.homehub.devices.DeviceRegistry;
 import com.homehub.devices.Devices;
-import com.homehub.devices.MediaPlayer;
-import com.homehub.devices.Sensing;
-import com.homehub.devices.SmartBulb;
-import com.homehub.devices.SmartLock;
 
 // Only formats output; it never changes any state.
 class Display {
@@ -21,31 +17,19 @@ class Display {
     }
 
     void devices(DeviceRegistry registry) {
+        // Column widths follow the longest value, so long names do not push the other columns out of line.
+        int idWidth = registry.all().stream().mapToInt(d -> d.getId().length()).max().orElse(0);
+        int nameWidth = registry.all().stream().mapToInt(d -> d.getName().length()).max().orElse(0);
+        int roomWidth = registry.all().stream().mapToInt(d -> d.getRoom().length()).max().orElse(0);
+        String row = "%-" + idWidth + "s  %-" + nameWidth + "s  %-" + roomWidth + "s  %6.0f W  %s%n";
         for (Devices d : registry.all()) {
-            out.printf("%-4s %-18s %-12s %6.0f W  %s%n",
-                    d.getId(), d.getName(), d.getRoom(), d.getRatedWatts(), d.isOnline() ? "ON" : "OFF");
+            out.printf(row, d.getId(), d.getName(), d.getRoom(), d.getRatedWatts(), d.isOnline() ? "ON" : "OFF");
         }
     }
 
     // Shows the device as it is now, so the user can see what a command did.
     void state(Devices d) {
-        StringBuilder sb = new StringBuilder(d.getName()).append(": ").append(d.isOnline() ? "ON" : "OFF");
-        if (d instanceof SmartBulb b) {
-            sb.append(", brightness ").append(b.getBrightness())
-                    .append(", colour temperature ").append(b.getColorTemperature());
-            if (!b.getMessage().isEmpty()) {
-                sb.append(" (").append(b.getMessage()).append(")");
-            }
-        } else if (d instanceof SmartLock l) {
-            sb.append(", ").append(l.getLockStatus() ? "locked" : "unlocked")
-                    .append(", battery ").append(l.getBatteryLevel()).append("%");
-        } else if (d instanceof Sensing s) {
-            sb.append(", reading ").append(s.getReading());
-        } else if (d instanceof MediaPlayer p) {
-            sb.append(", volume ").append(p.getVolume()).append(p.isMuted() ? " (muted)" : "")
-                    .append(", ").append(p.getPlaybackState());
-        }
-        out.println(sb);
+        out.println(d.getName() + ": " + (d.isOnline() ? "ON" : "OFF") + d.describeDetails());
     }
 
     // Says what triggers each rule and what it does, and flags rules whose device no longer exists.

@@ -1,5 +1,7 @@
 package com.homehub.devices;
 
+import java.util.Optional;
+
 //  holds what all devices share; subclasses add their own behaviour.
 public abstract class Devices{
     private final String id;
@@ -67,6 +69,25 @@ public abstract class Devices{
 
    public void setOnline(boolean value){
     this.onlineStatus = value;
+    }
+
+    // Most devices need no code. A device that does overrides both of these.
+    public boolean requiresCodeFor(Action action) {
+        return false;
+    }
+
+    public boolean codeMatches(String attempt) {
+        return true;
+    }
+
+    // Sensors return themselves here, so callers can read sensors without asking what class a device is.
+    public Optional<Sensing> asSensor() {
+        return Optional.empty();
+    }
+
+    // What the device adds to its one-line status, e.g. ", brightness 50". Subclasses override it.
+    public String describeDetails() {
+        return "";
     }
 
     public double getRatedWatts(){

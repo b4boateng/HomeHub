@@ -30,10 +30,9 @@ public class EventCondition implements Condition {
 
     @Override
     public String describe() {
-        // Door events carry no reading, so a minimum value would only be noise.
-        boolean door = type == EventType.DOOR_LOCKED || type == EventType.DOOR_UNLOCKED;
         StringBuilder sb = new StringBuilder(type.toString()).append(" from ").append(sourceId);
-        if (!door) {
+        // Door events carry no reading, so a minimum value would only be noise.
+        if (type.hasReading()) {
             sb.append(", value >= ").append(minValue);
         }
         if (window != null) {
