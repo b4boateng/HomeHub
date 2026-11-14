@@ -1,7 +1,5 @@
 package com.homehub.energy;
 
-import com.homehub.devices.*;
-
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -12,6 +10,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+
+import com.homehub.devices.DeviceRegistry;
+import com.homehub.devices.Devices;
+import com.homehub.devices.EnergyReporting;
 
 public class EnergyAccountant {
 
@@ -76,9 +78,7 @@ public class EnergyAccountant {
         return history;
     }
 
-    // Saved history with this run folded in. Hours this run covered are replaced by this run's figures and every other
-    // hour is kept, so replaying the same period twice gives the same history instead of counting it twice.
-    // An hour this run only partly covered counts as covered, and a run that billed no time replaces nothing.
+    //Saves this run’s figures over the hours it covered and keeps every other hour, so replaying the same period twice doesn’t double-count it
     public List<EnergyRecord> mergedWith(List<EnergyRecord> saved) {
         LocalDateTime firstHour = start.truncatedTo(ChronoUnit.HOURS);
         boolean billedAnyTime = lastBilled.isAfter(start);
@@ -94,7 +94,7 @@ public class EnergyAccountant {
         return merged;
     }
 
-    // A read-only snapshot in device order: callers can neither change the accountant's totals nor see later billing change theirs.
+    // Returns a read-only copy in device order, so callers can't change the totals.
     public Map<String, Double> getKwhByDevice() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(kwhByDevice));
     }
