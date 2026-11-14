@@ -15,6 +15,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -54,6 +55,7 @@ public class Console {
 
     private final DeviceRegistry registry;
     private final EventBus bus;
+    private final RuleEngine engine;
     private final DeviceControl control;
     private final PowerManager powerManager;
     private final EnergyAccountant accountant;
@@ -66,13 +68,14 @@ public class Console {
 
     private LocalDateTime now;
 
-    public Console(DeviceRegistry registry, EventBus bus, DeviceControl control, PowerManager powerManager,
+    public Console(DeviceRegistry registry, EventBus bus, RuleEngine engine, DeviceControl control, PowerManager powerManager,
                    EnergyAccountant accountant, List<Event> events, Path devicesFile, Path energyFile,
                    BufferedReader in, PrintStream out) {
         this.devicesFile = devicesFile;
         this.energyFile = energyFile;
         this.registry = registry;
         this.bus = bus;
+        this.engine = engine;
         this.control = control;
         this.powerManager = powerManager;
         this.accountant = accountant;
@@ -151,6 +154,22 @@ public class Console {
 
         control.send(device.getId(), new Command(action, amount));
         out.println("Completed: " + friendly(action) + " - " + device.getName() + ".");
+
+        if (device instanceof SmartLock && (action == Action.LOCK || action == Action.UNLOCK)) {
+            EventType type = action == Action.LOCK ? EventType.DOOR_LOCKED : EventType.DOOR_UNLOCKED;
+            bus.publish(new Event(type, now, device.getId(), 0));
+        }
+    }
+
+    /** Publishes a reading as an event only when it newly satisfies a rule, so rules do not fire on every reading. */
+    private void publishIfCrossed(EventType type, String sourceId, int previous, int current) {
+        Event before = new Event(type, now, sourceId, previous);
+        Event after = new Event(type, now, sourceId, current);
+        boolean wasMatching = engine.getRules().stream().anyMatch(r -> r.matches(before));
+        boolean nowMatching = engine.getRules().stream().anyMatch(r -> r.matches(after));
+        if (nowMatching && !wasMatching) {
+            bus.publish(after);
+        }
     }
 
     private String friendly(Action a) {
@@ -177,11 +196,22 @@ public class Console {
             return;
         }
         Devices sensor = sensors.get(choice - 1);
+        int previousHumidity = sensor instanceof HumiditySensor h0 ? h0.getHumidity() : 0;
+        int previousTemperature = sensor instanceof AirQualityMonitor a0 ? a0.getTemperature() : 0;
         ((Sensing) sensor).readValue();
 
         if (sensor instanceof HumiditySensor h) {
             out.println(h.getName() + " reports a humidity of " + h.getHumidity() + "%.");
+            publishIfCrossed(EventType.HUMIDITY, h.getId(), previousHumidity, h.getHumidity());
+        } else if (sensor instanceof MotionSensor m) {
+            if (m.isMotionDetected()) {
+                out.println(m.getName() + " detected motion in the " + m.getRoom() + ".");
+                bus.publish(new Event(EventType.MOTION, now, m.getId(), 1));
+            } else {
+                out.println(m.getName() + " detected no motion in the " + m.getRoom() + ".");
+            }
         } else if (sensor instanceof AirQualityMonitor a) {
+            publishIfCrossed(EventType.TEMPERATURE, a.getId(), previousTemperature, a.getTemperature());
             out.println(a.getName() + " reports: carbon dioxide " + a.getCarbonDioxideLevel()
                     + ", carbon monoxide " + a.getCarbonMonoxideLevel()
                     + ", oxygen " + a.getOxygenLevel() + ", temperature " + a.getTemperature()
@@ -191,25 +221,109 @@ public class Console {
         }
     }
 
-    private void fireEvent() {
-        List<String> labels = events.stream().map(this::describeEvent).toList();
-        int choice = choose("Select the event that occurred", labels, "Return");
-        if (choice == 0) {
-            return;
+    private record Source(String id, String label, Devices device, List<EventType> types) { }
+
+    private List<Source> eventSources() {
+        List<Source> candidates = new ArrayList<>();
+        for (Devices d : registry.all()) {
+            if (d instanceof SmartLock) {
+                candidates.add(new Source(d.getId(), d.getName(), d, List.of(EventType.DOOR_LOCKED, EventType.DOOR_UNLOCKED)));
+            } else if (d instanceof MotionSensor) {
+                candidates.add(new Source(d.getId(), d.getName(), d, List.of(EventType.MOTION)));
+            } else if (d instanceof AirQualityMonitor) {
+                candidates.add(new Source(d.getId(), d.getName(), d, List.of(EventType.TEMPERATURE)));
+            }
         }
-        Event chosen = events.get(choice - 1);
-        out.println("The event has been submitted. Any matching rules will now run.");
-        bus.publish(new Event(chosen.type(), now, chosen.sourceId(), chosen.value()));
-        out.println("Event processed.");
+        events.stream()
+                .filter(e -> e.type() == EventType.MOTION && !registry.contains(e.sourceId()))
+                .map(Event::sourceId).distinct()
+                .forEach(id -> candidates.add(new Source(id, "Motion sensor " + id, null, List.of(EventType.MOTION))));
+
+        List<Source> sources = new ArrayList<>();
+        for (Source c : candidates) {
+            List<EventType> useful = c.types().stream().filter(t -> hasRule(t, c.id())).toList();
+            if (!useful.isEmpty()) {
+                sources.add(new Source(c.id(), c.label(), c.device(), useful));
+            }
+        }
+        return sources;
     }
 
-    private String describeEvent(Event e) {
-        return switch (e.type()) {
-            case MOTION -> "Motion detected (" + e.sourceId() + ")";
-            case DOOR_LOCKED -> "Door locked (" + e.sourceId() + ")";
-            case DOOR_UNLOCKED -> "Door unlocked (" + e.sourceId() + ")";
-            case TEMPERATURE -> "Temperature changed to " + e.value() + " (" + e.sourceId() + ")";
-            case HUMIDITY -> "Humidity changed to " + e.value() + "% (" + e.sourceId() + ")";
+    /** True if some rule could match this kind of event from this source at some time of day and value. */
+    private boolean hasRule(EventType type, String sourceId) {
+        for (Rule rule : engine.getRules()) {
+            for (int hour = 0; hour < 24; hour++) {
+                if (rule.matches(new Event(type, now.toLocalDate().atTime(hour, 0), sourceId, Integer.MAX_VALUE))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void fireEvent() {
+        List<Source> sources = eventSources();
+        if (sources.isEmpty()) {
+            out.println("No device is able to trigger an event that any rule responds to.");
+            return;
+        }
+        int sourceChoice = choose("Step 1: Select the device that detected something",
+                sources.stream().map(Source::label).toList(), "Return");
+        if (sourceChoice == 0) {
+            return;
+        }
+        Source source = sources.get(sourceChoice - 1);
+        if (source.device() != null && !source.device().isOnline()) {
+            throw new DeviceOfflineException(source.label());
+        }
+
+        EventType type = source.types().get(0);
+        if (source.types().size() > 1) {
+            int typeChoice = choose("Step 2: What happened at " + source.label() + "?",
+                    source.types().stream().map(this::describeEvent).toList(), "Return");
+            if (typeChoice == 0) {
+                return;
+            }
+            type = source.types().get(typeChoice - 1);
+        }
+
+        int value = type == EventType.MOTION ? 1 : 0;
+        if (type == EventType.HUMIDITY || type == EventType.TEMPERATURE) {
+            String unit = type == EventType.HUMIDITY ? "humidity percentage" : "temperature";
+            int fallback = defaultReading(type, source.id());
+            Double reading = askNumber("Enter the " + unit + " reported by " + source.label()
+                    + " (press Enter for " + fallback + "):", fallback);
+            if (reading == null) {
+                return;
+            }
+            value = (int) Math.round(reading);
+        }
+
+        if (source.device() instanceof SmartLock lock) {
+            lock.setLockStatus(type == EventType.DOOR_LOCKED);
+        }
+        bus.publish(new Event(type, now, source.id(), value));
+        out.println("Event processed: " + describeEvent(type) + " at " + source.label() + ".");
+    }
+
+    /** The lowest reading that makes some rule respond, so pressing Enter triggers the rule. */
+    private int defaultReading(EventType type, String sourceId) {
+        for (int value = 0; value <= 100; value++) {
+            Event candidate = new Event(type, now, sourceId, value);
+            if (engine.getRules().stream().anyMatch(r -> r.matches(candidate))) {
+                return value;
+            }
+        }
+        return 0;
+    }
+
+    private String describeEvent(EventType type) {
+        return switch (type) {
+            case MOTION -> "Motion detected";
+            case DOOR_LOCKED -> "The door was locked";
+            case DOOR_UNLOCKED -> "The door was unlocked";
+            case TEMPERATURE -> "Temperature reading";
+            case HUMIDITY -> "Humidity reading";
         };
     }
 
@@ -349,8 +463,22 @@ public class Console {
     }
 
     private Double askNumber(String question) {
+        return askNumber(question, null);
+    }
+
+    private Double askNumber(String question, Integer fallback) {
         while (true) {
-            String answer = askText(question);
+            String answer;
+            if (fallback == null) {
+                answer = askText(question);
+            } else {
+                out.print(question + " ");
+                out.flush();
+                answer = readLine();
+                if (answer != null && answer.isBlank()) {
+                    return fallback.doubleValue();
+                }
+            }
             if (answer == null) {
                 return null;
             }

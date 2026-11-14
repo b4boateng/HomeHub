@@ -31,6 +31,10 @@ public class DeviceControl {
             throw new HomeHubException(device.getName() + " cannot " + command.action());
         }
 
+        if (!device.isOnline() && command.action() != Action.TURN_ON && command.action() != Action.TURN_OFF) {
+            throw new DeviceOfflineException(device.getName());
+        }
+
         if (command.action() == Action.TURN_ON && !device.isOnline()) {
             powerPolicy.require(currentLoad(), device.getRatedWatts());
         }

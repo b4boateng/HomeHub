@@ -61,7 +61,7 @@ public class AirQualityMonitor extends Devices implements Sensing{
         carbonDioxideLevel = randomBetween(minCarbonDioxide, maxCarbonDioxide);
         carbonMonoxideLevel = randomBetween(minCarbonMonoxide, maxCarbonMonoxide);
         temperature = randomBetween(minTemperature, maxTemperature);
-        System.out.println("Air: CO2=" + carbonDioxideLevel + " CO=" + carbonMonoxideLevel + " temp=" + temperature);
+        //System.out.println("Air: CO2=" + carbonDioxideLevel + " CO=" + carbonMonoxideLevel + " temp=" + temperature);
     }
 
 }

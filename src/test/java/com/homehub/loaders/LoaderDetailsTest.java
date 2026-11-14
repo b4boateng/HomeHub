@@ -38,9 +38,11 @@ class LoaderDetailsTest {
                 "SPEAKER,3,n,b,m,r,10,true",
                 "LOCK,4,n,b,m,r,10,true",
                 "HUMIDITY,5,n,b,m,r,10,true",
-                "AIR,6,n,b,m,r,10,true");
+                "AIR,6,n,b,m,r,10,true",
+                "MOTION,7,n,b,m,r,1,true");
 
         List<Devices> d = new DevicesLoader().load(file);
+        assertInstanceOf(MotionSensor.class, d.get(6));
 
         assertInstanceOf(SmartBulb.class, d.get(0));
         assertInstanceOf(SmartTv.class, d.get(1));

@@ -42,7 +42,7 @@ public class Application {
             if (batch) {
                 runBatch(registry, bus, events);
             } else {
-                runConsole(registry, bus, powerManager, events, folder);
+                runConsole(registry, bus, engine, powerManager, events, folder);
             }
 
         } catch (HomeHubException e) {
@@ -50,7 +50,7 @@ public class Application {
         }
     }
 
-    private static void runConsole(DeviceRegistry registry, EventBus bus, PowerManager powerManager, List<Event> events, Path folder) {
+    private static void runConsole(DeviceRegistry registry, EventBus bus, RuleEngine engine, PowerManager powerManager, List<Event> events, Path folder) {
         LocalDateTime start = LocalDateTime.now().truncatedTo(ChronoUnit.MINUTES);
         EnergyAccountant accountant = new EnergyAccountant(registry, start);
         Path energyFile = folder.resolve("energy.csv");
@@ -60,7 +60,7 @@ public class Application {
         DeviceControl control = new DeviceControl(registry, powerManager);
         BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
 
-        new Console(registry, bus, control, powerManager, accountant, events,
+        new Console(registry, bus, engine, control, powerManager, accountant, events,
                 folder.resolve("devices.csv"), energyFile, in, System.out).run();
     }
 

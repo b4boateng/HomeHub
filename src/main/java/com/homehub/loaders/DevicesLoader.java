@@ -3,7 +3,7 @@ package com.homehub.loaders;
 import com.homehub.devices.*;
 
 // devices.csv columns: type,id,name,brand,model,room,watts,online
-// type is one of BULB, TV, SPEAKER, LOCK, HUMIDITY, AIR.
+// type is one of BULB, TV, SPEAKER, LOCK, HUMIDITY, AIR, MOTION.
 // Starting values the CSV doesn't carry (volume, brightness...) are the constants below;
 // the devices change them while the simulation runs.
 public class DevicesLoader extends CsvLoader<Devices> {
@@ -43,6 +43,7 @@ public class DevicesLoader extends CsvLoader<Devices> {
             case "HUMIDITY" -> new HumiditySensor(id, model, name, brand, online, room, watts, START_HUMIDITY);
             case "AIR"      -> new AirQualityMonitor(id, name, brand, online, room, model, START_OXYGEN, START_CARBON_MONOXIDE,
                                                      START_CARBON_DIOXIDE, START_AIR_TEMPERATURE, START_PM25, watts);
+            case "MOTION"   -> new MotionSensor(id, name, brand, online, room, model, watts);
             default -> throw new IllegalArgumentException("unknown device type '" + c[0] + "'");
         };
     }
