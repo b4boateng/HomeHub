@@ -1,6 +1,6 @@
 # HomeHub
 
-A console smart-home simulator in Java 17. Devices (bulbs, TVs, speakers, locks, and motion, temperature and humidity sensors) are loaded from CSV files. Rules react to events (such as motion or a door unlocking) by sending commands to devices, and the app tracks how much energy each device uses.
+A console smart-home simulator. Devices (bulbs, TVs, speakers, locks, and motion, temperature and humidity sensors) are loaded from CSV files. Rules react to events (such as motion or a door unlocking) by sending commands to devices, and the app tracks how much energy each device uses.
 
 Individual final project for the Java OOP course (JUNIA M1).
 
