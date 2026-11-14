@@ -1,0 +1,9 @@
+type,id,name,brand,model,room,watts,online
+BULB,b1,Hall Light,Philips,LB-100,Hallway,12,false
+BULB,b2,Lounge Light,Philips,LB-100,Living Room,40,false
+TV,t1,Living Room TV,Samsung,QN90,Living Room,120,false
+SPEAKER,s1,Kitchen Speaker,Sonos,One,Kitchen,15,true
+LOCK,l1,Front Door,Yale,YL-5,Hallway,2,true
+HUMIDITY,h1,Bathroom Humidity,Aqara,HS-1,Bathroom,1,true
+AIR,a1,Air Monitor,Awair,AW-2,Bedroom,3,true
+BULB,b3,Hall Lamp,Phillips,23456789,Hall,55.0,true

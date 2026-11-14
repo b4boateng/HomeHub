@@ -1,5 +1,9 @@
 package com.homehub;
 
+import com.homehub.automation.*;
+import com.homehub.devices.*;
+import com.homehub.energy.*;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.LocalDateTime;

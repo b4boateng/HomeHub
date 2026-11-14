@@ -1,0 +1,5 @@
+eventType,source,minValue,windowStart,windowEnd,deviceId,action,priority
+MOTION,m1,1,22:00,06:00,b1,TURN_ON,1
+MOTION,m1,1,,,b2,TURN_ON,1
+DOOR_UNLOCKED,l1,0,,,b1,TURN_ON,2
+HUMIDITY,h1,80,,,s1,PLAY,1
