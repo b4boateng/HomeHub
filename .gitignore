@@ -1,6 +1,17 @@
-﻿target/
+﻿# Build output (Maven regenerates all of this)
+target/
+out/
+*.class
+
+# IDE files
 .idea/
 *.iml
 .vscode/
+.classpath
+.project
+.settings/
 
-
+# Logs and OS junk
+*.log
+.DS_Store
+Thumbs.db

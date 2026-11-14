@@ -15,10 +15,11 @@ public class SmartBulb extends Devices implements Controllable, EnergyReporting 
     @Override 
     public void execute(Command command) {
         switch(command.action()){
-           case TURN_ON  -> setOnline(true);
+        case TURN_ON  -> setOnline(true);
         case TURN_OFF -> setOnline(false);
-        case BRIGHTEN -> setBrightness(brightness + command.value());
-        case DIM      -> setBrightness(brightness - command.value());
+        // long maths, so a huge value cannot overflow and wrap around to the wrong end of the range.
+        case BRIGHTEN -> setBrightness((int) Math.min(100L, (long) brightness + command.value()));
+        case DIM      -> setBrightness((int) Math.max(0L, (long) brightness - command.value()));
         default       -> throw new IllegalStateException();
 
         }
@@ -34,15 +35,16 @@ public class SmartBulb extends Devices implements Controllable, EnergyReporting 
          
     }
 
-    // will implement this later
+
     @Override 
     public double currentPowerWatts(){
-        return  isOnline() ? ratedWatts : 0;
+        return  isOnline() ? getRatedWatts() : 0;
     }
 
     public int getBrightness() {
         return brightness;
     }
+    
     public int getColorTemperature() {
         return colorTemperature;
         
@@ -55,22 +57,6 @@ public class SmartBulb extends Devices implements Controllable, EnergyReporting 
 
     public void setColorTemperature(int colorTemperature){
         this.colorTemperature = Math.max(0, Math.min(255, colorTemperature));
-    }
-
-    @Override 
-    public double getRatedWatts(){
-        return ratedWatts;
-    }
-    
-    @Override 
-    public String getId(){
-        return  id;
-    }
-
-    @Override 
-      public String getModelNumber(){
-        return modelNumber;
-
     }
 
     void setMessage(String message){

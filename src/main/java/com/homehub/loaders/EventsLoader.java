@@ -4,8 +4,7 @@ import com.homehub.automation.*;
 
 import java.time.LocalDateTime;
 
-// events.csv columns: timestamp,type,source,value
-// timestamp looks like 2026-10-27T23:30
+// Reads events.csv and turns each row into an Event.
 public class EventsLoader extends CsvLoader<Event> {
 
     public EventsLoader() {

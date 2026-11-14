@@ -8,6 +8,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
+// Listens for events and runs the commands of every rule that matches, highest priority first.
 public class RuleEngine {
 
     private final DeviceRegistry registry;
@@ -19,22 +20,26 @@ public class RuleEngine {
         this.registry = registry;
         this.control = new DeviceControl(registry, powerPolicy);
         this.log = log;
+        // Subscribe so every published event reaches handle().
         bus.subscribe(this::handle);
     }
 
     public void addRule(Rule rule) {
+        // Reject the rule before adding it if it conflicts with one already there.
         ConflictDetector.check(rule, rules);
         rules.add(rule);
     }
 
     public List<Rule> getRules() {
+        // A copy, so callers cannot change the engine's rules.
         return List.copyOf(rules);
     }
 
     private void handle(Event event) {
         List<Rule> matching = rules.stream()
                 .filter(r -> r.matches(event))
-                .sorted(Comparator.comparingInt(Rule::getPriority))   
+                // Lower number runs first.
+                .sorted(Comparator.comparingInt(Rule::getPriority))
                 .toList();
 
         if (matching.isEmpty()) {
@@ -51,6 +56,7 @@ public class RuleEngine {
         String targetId = rule.getTargetDeviceId();
         Command command = rule.getCommand();
 
+        // A rule can point to a device that is not in devices.csv, it is  skipped instead of crashing.
         if (!registry.contains(targetId)) {
             log.accept("Skipped: no device '" + targetId + "'");
             return;
@@ -62,6 +68,7 @@ public class RuleEngine {
             control.send(targetId, command);
             log.accept("Applied " + command.action() + " to " + name
                     + " (priority " + rule.getPriority() + ", triggered by " + event.type() + ")");
+        // Log the failure and keep going with the other rules.
         } catch (IllegalStateException | HomeHubException ex) {
             log.accept("Failed: " + command.action() + " on " + name + ": " + ex.getMessage());
         }

@@ -2,7 +2,7 @@ package com.homehub.automation;
 
 import com.homehub.devices.*;
 import java.util.Objects;
-
+// Rules check when a  condition matches an event, if it does it  sends a  command to a device.
 public class Rule{
 
         private Condition condition;
@@ -11,6 +11,7 @@ public class Rule{
         private int priority;
 
     public Rule (Condition condition, String targetDeviceId, Command command, int priority) {
+        // Fail early on missing values.
         this.condition = Objects.requireNonNull(condition);
         this.targetDeviceId = Objects.requireNonNull(targetDeviceId);
         this.command = Objects.requireNonNull(command);

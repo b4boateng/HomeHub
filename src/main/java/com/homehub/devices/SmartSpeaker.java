@@ -99,7 +99,7 @@ public class SmartSpeaker extends Devices implements Controllable, EnergyReporti
 
     @Override
     public double currentPowerWatts() {
-       return  isOnline() ? ratedWatts : 0;
+       return  isOnline() ? getRatedWatts() : 0;
     }
 
    

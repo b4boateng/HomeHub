@@ -19,7 +19,7 @@ public class MotionSensor extends Devices implements Sensing {
         this.motionDetected = motionDetected;
     }
 
-    /** Simulates a new reading: someone is in the room about half of the time. */
+    // Simulates a new reading where someone could be in a room
     @Override
     public void readValue() {
         motionDetected = RANDOM.nextBoolean();

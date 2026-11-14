@@ -5,15 +5,11 @@ public enum Action {
     TURN_OFF,
     LOCK,
     UNLOCK,
-    NOTIFY,
-    SOUND_ALARM,
     BRIGHTEN,
     DIM,
     PLAY,
     STOP,
     PAUSE,
-    RESUME,
-    
-    
+    RESUME
 
 }

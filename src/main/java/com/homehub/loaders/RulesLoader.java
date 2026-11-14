@@ -5,6 +5,7 @@ import com.homehub.devices.*;
 
 import java.time.LocalTime;
 
+// Reads rules.csv and turns each row into a Rule.
 public class RulesLoader extends CsvLoader<Rule> {
 
     public RulesLoader() {
@@ -24,10 +25,7 @@ public class RulesLoader extends CsvLoader<Rule> {
                 ? null
                 : new TimeWindow(LocalTime.parse(c[3]), LocalTime.parse(c[4]));
 
-        Condition condition = event -> event.type() == type
-                && event.sourceId().equals(source)
-                && event.value() >= minValue
-                && (window == null || window.test(event));
+        Condition condition = new EventCondition(type, source, minValue, window);
 
         return new Rule(condition, c[5], new Command(action), priority);
     }

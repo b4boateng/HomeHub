@@ -27,14 +27,17 @@ public class DeviceControl {
     public void send(String deviceId, Command command) {
         Devices device = registry.get(deviceId);
 
+        // Sensors cannot be commanded, so check the capability.
         if (!(device instanceof Controllable controllable) || !controllable.supports(command.action())) {
             throw new HomeHubException(device.getName() + " cannot " + command.action());
         }
 
+        // Offline devices can only be turned on or off.
         if (!device.isOnline() && command.action() != Action.TURN_ON && command.action() != Action.TURN_OFF) {
             throw new DeviceOfflineException(device.getName());
         }
 
+        // Only switching on adds load, so check the limit only then.
         if (command.action() == Action.TURN_ON && !device.isOnline()) {
             powerPolicy.require(currentLoad(), device.getRatedWatts());
         }

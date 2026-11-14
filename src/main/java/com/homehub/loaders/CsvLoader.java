@@ -8,9 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-// Does the boring part once: read the file, skip the header, split each line into cells,
-// and turn ANY problem into a DataLoadException that names the file and line.
-// Subclasses only say how to turn one row (its cells) into an object.
+// Reads a CSV file and turns each row into an object.
 public abstract class CsvLoader<T> implements DataLoader<T> {
 
     private final int columns;

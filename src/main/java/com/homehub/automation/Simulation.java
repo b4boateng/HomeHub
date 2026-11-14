@@ -40,9 +40,11 @@ public class Simulation {
     }
 
     public void run(LocalDateTime end){
+        // Sort so time only moves forward.
         List<Event> ordered = events.stream().sorted(Comparator.comparing(Event::timestamp)).toList();
 
         for (Event event : ordered)  {
+            // Bill the  time passed before the event changes anything.
             accountant.advanceTo(event.timestamp());
             log.accept("t=" + event.timestamp() + " " + event.type() + " from " + event.sourceId());
             bus.publish(event);

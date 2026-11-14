@@ -11,8 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-// energy.csv columns: hour,deviceId,kwh
-// One row per device per hour, for example: 2026-11-14T13:00,b1,0.060000
+// Reads and saves energy.csv, one row per device per hour (hour, deviceId, kwh).
 public class EnergyLoader extends CsvLoader<EnergyRecord> {
 
     private static final String HEADER = "hour,deviceId,kwh";

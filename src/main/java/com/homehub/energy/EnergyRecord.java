@@ -2,7 +2,7 @@ package com.homehub.energy;
 
 import java.time.LocalDateTime;
 
-// The energy one device used during one clock hour. "hour" is always on the hour, for example 13:00.
+// kwh used by a device in one clock hour
 public class EnergyRecord {
 
     private final LocalDateTime hour;

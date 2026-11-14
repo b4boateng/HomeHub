@@ -1,13 +1,14 @@
 package com.homehub.devices;
 
+//  holds what all devices share; subclasses add their own behaviour.
 public abstract class Devices{
-    protected String id;
-    protected String modelNumber;
-    protected String name;
-    protected String brand;
-    protected boolean onlineStatus;
-    protected String room;
-    protected final double ratedWatts;
+    private String id;
+    private String modelNumber;
+    private String name;
+    private String brand;
+    private boolean onlineStatus;
+    private String room;
+    private final double ratedWatts;
 
     public Devices(String id, String name, String brand, boolean onlineStatus, String room, String modelNumber, double ratedWatts){
         this.id = id;

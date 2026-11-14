@@ -2,7 +2,7 @@ package com.homehub.app;
 
 import com.homehub.automation.*;
 import com.homehub.devices.*;
-import com.homehub.energy.*;
+import com.homehub.energy.PowerManager;
 import com.homehub.loaders.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -12,358 +12,459 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.StringReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import org.junit.jupiter.api.io.TempDir;
-import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
 
+// Drives the console with typed input, exactly as a person would, against small data files in a temp folder.
+// The timeout turns a console that never stops asking (for example at end of input) into a failure, not a hang.
+@Timeout(10)
 class ConsoleTest {
 
-    private static final LocalDateTime START = LocalDateTime.of(2026, 10, 27, 12, 0);
-
-    private DeviceRegistry registry;
-    private EventBus bus;
-    private SmartBulb light;
-    private EnergyAccountant accountant;
-    private List<Event> events;
+    private static final String HEADER = "type,id,name,brand,model,room,watts,online\n";
+    private static final String DEVICES = HEADER
+            + "BULB,b1,Hall Light,Philips,LB-100,Hallway,12,false\n"
+            + "SPEAKER,s1,Kitchen Speaker,Sonos,One,Kitchen,15,true\n"
+            + "LOCK,l1,Front Door,Yale,YL-5,Hallway,2,true\n"
+            + "MOTION,m1,Hall Motion,Aqara,MS-1,Hallway,1,true\n";
+    private static final String RULES = "eventType,source,minValue,windowStart,windowEnd,deviceId,action,priority\n"
+            + "MOTION,m1,1,,,b1,TURN_ON,1\n"
+            + "DOOR_UNLOCKED,l1,0,,,b1,TURN_ON,2\n"
+            + "HUMIDITY,h1,80,,,s1,PLAY,1\n";
+    private static final String EVENTS = "timestamp,type,source,value\n"
+            + "2026-10-27T12:00,MOTION,m1,1\n"
+            + "2026-10-27T14:00,DOOR_UNLOCKED,l1,0\n";
 
     @TempDir
-    Path tempDir;
+    Path folder;
+
+    private DeviceRegistry registry;
+    private Path devicesFile;
+    private Path fileConsoleWritesTo;   // normally devicesFile; a test can point it somewhere that fails
 
     @BeforeEach
     void setUp() throws IOException {
-        devicesFile = tempDir.resolve("devices.csv");
-        energyFile = tempDir.resolve("energy.csv");
-        Files.writeString(devicesFile, "type,id,name,brand,model,room,watts,online\n");
+        devicesFile = folder.resolve("devices.csv");
+        fileConsoleWritesTo = devicesFile;
+        Files.writeString(devicesFile, DEVICES);
+        Files.writeString(folder.resolve("rules.csv"), RULES);
+        Files.writeString(folder.resolve("events.csv"), EVENTS);
+    }
+
+    // Runs one console session and returns everything it printed.
+    private String session(String... lines) throws IOException {
         registry = new DeviceRegistry();
-        bus = new EventBus();
-        light = new SmartBulb(50, 128, "b1", "LB", "Hall Light", "Philips", "Hallway", false, 60, "");
-        registry.register(light);
-        accountant = new EnergyAccountant(registry, START);
-        events = List.of(new Event(EventType.MOTION, START, "m1", 1));
-    }
-
-    private Path devicesFile;
-    private Path energyFile;
-
-    private String play(double limitWatts, String script) {
-        PowerManager powerManager = new PowerManager(limitWatts);
-        RuleEngine engine = new RuleEngine(registry, bus, powerManager, s -> { });
-        engine.addRule(new Rule(e -> e.type() == EventType.MOTION, "b1", new Command(Action.TURN_ON), 1));
-        engine.addRule(new Rule(e -> e.type() == EventType.DOOR_UNLOCKED, "b1", new Command(Action.TURN_ON), 2));
-        DeviceControl control = new DeviceControl(registry, powerManager);
-        ByteArrayOutputStream captured = new ByteArrayOutputStream();
-
-        new Console(registry, bus, engine, control, powerManager, accountant, events, devicesFile, energyFile,
-                new BufferedReader(new StringReader(script)),
-                new PrintStream(captured, true, StandardCharsets.UTF_8)).run();
-
-        return captured.toString(StandardCharsets.UTF_8);
-    }
-
-    @Test
-    void zeroQuitsTheProgram() {
-        assertTrue(play(1000, "0\n").contains("The HomeHub session has ended"));
-    }
-
-    @Test
-    void endOfInputQuitsInsteadOfLoopingForever() {
-        assertTrue(play(1000, "").contains("The HomeHub session has ended"));
-    }
-
-    @Test
-    void anInvalidChoiceIsRefusedAndAskedAgain() {
-        String output = play(1000, "abc\n99\n0\n");
-        assertTrue(output.contains("Invalid selection. Please enter a number between 0 and 8"), output);
-        assertTrue(output.contains("The HomeHub session has ended"));
-    }
-
-    @Test
-    void seeMyDevicesListsEachDeviceInPlainWords() {
-        assertTrue(play(1000, "1\n0\n").contains("Hall Light (Hallway): off"));
-    }
-
-    @Test
-    void controllingADeviceTakesThreePicksAndWorks() {
-        String output = play(1000, "2\n1\n1\n0\n");
-        assertTrue(light.isOnline());
-        assertTrue(output.contains("Completed: Turn on - Hall Light."), output);
-    }
-
-    @Test
-    void goingBackFromTheDeviceListChangesNothing() {
-        play(1000, "2\n0\n0\n");
-        assertFalse(light.isOnline());
-    }
-
-    @Test
-    void theOverLimitMessageIsShownAndTheDeviceStaysOff() {
-        String output = play(50, "2\n1\n1\n0\n");
-        assertFalse(light.isOnline());
-        assertTrue(output.contains("The request could not be completed"), output);
-    }
-
-    @Test
-    void firingAnEventLetsTheRulesReact() {
-        play(1000, "4\n1\n0\n");
-        assertTrue(light.isOnline());
-    }
-
-    @Test
-    void letTimePassMovesTheClockAndBillsEnergy() {
-        light.setOnline(true);
-        String output = play(1000, "5\n2\n0\n");
-        assertEquals(0.06, accountant.getKwhByDevice().get("b1"), 1e-9);
-        assertTrue(output.contains("The clock was advanced by 1h 0m"), output);
-    }
-
-    @Test
-    void advancingTheClockSavesTheHourlyHistory() throws IOException {
-        light.setOnline(true);
-        play(1000, "5\n3\n0\n");
-        List<EnergyRecord> saved = new EnergyLoader().load(energyFile);
-        assertEquals(6, saved.size());
-        assertEquals(LocalDateTime.of(2026, 10, 27, 12, 0), saved.get(0).hour());
-        assertEquals("b1", saved.get(0).deviceId());
-        assertEquals(0.06, saved.get(0).kwh(), 1e-9);
-    }
-
-    @Test
-    void nothingIsSavedWhenNoTimePasses() {
-        play(1000, "4\n1\n0\n");
-        assertFalse(Files.exists(energyFile));
-    }
-
-    @Test
-    void untilTonightSkipsToTenOClock() {
-        play(1000, "5\n4\n0\n");
-        assertEquals(LocalDateTime.of(2026, 10, 27, 22, 0), accountant.getLastBilled());
-    }
-
-    @Test
-    void showPowerReportsTheLoadAndTheLimit() {
-        light.setOnline(true);
-        String output = play(1000, "6\n0\n");
-        assertTrue(output.contains("Current consumption is 60 W") && output.contains("limit is 1000 W"), output);
-    }
-
-    @Test
-    void energyBeforeAnyTimePassesSaysSo() {
-        assertTrue(play(1000, "7\n0\n").contains("No energy consumption has been recorded"));
-    }
-
-    @Test
-    void addingADeviceRegistersItWithTheNextFreeId() {
-        play(1000, "8\n1\nDesk Lamp\nStudy\nIkea\nL1\n9\n1\n0\n");
-        assertEquals("Desk Lamp", registry.get("b2").getName());
-        assertEquals(9, registry.get("b2").getRatedWatts());
-    }
-
-    @Test
-    void cancellingAtTheLastStepAddsNothing() throws IOException {
-        play(1000, "8\n1\nDesk Lamp\nStudy\nIkea\nL1\n9\n0\n0\n");
-        assertFalse(registry.contains("b2"));
-        assertEquals(1, Files.readAllLines(devicesFile).size());
-    }
-
-    @Test
-    void anAddedDeviceIsAppendedToTheCsvAndCanBeLoadedBack() throws IOException {
-        play(1000, "8\n1\nDesk, Lamp\nStudy\nIkea\nL1\n9\n1\n0\n");
-        assertEquals("BULB,b2,Desk  Lamp,Ikea,L1,Study,9.0,true", Files.readAllLines(devicesFile).get(1));
-        Devices loaded = new DevicesLoader().load(devicesFile).get(0);
-        assertEquals("b2", loaded.getId());
-        assertEquals(9, loaded.getRatedWatts());
-    }
-
-    @Test
-    void aMissingTrailingNewlineDoesNotMergeTwoRows() throws IOException {
-        Files.writeString(devicesFile, "type,id,name,brand,model,room,watts,online\nBULB,b9,X,Y,Z,R,5,false");
-        play(1000, "8\n1\nDesk Lamp\nStudy\nIkea\nL1\n9\n1\n0\n");
-        assertEquals(2, new DevicesLoader().load(devicesFile).size());
-    }
-
-    @Test
-    void aBadWattsAnswerIsAskedAgain() {
-        String output = play(1000, "8\n1\nDesk Lamp\nStudy\nIkea\nL1\nlots\n9\n1\n0\n");
-        assertTrue(output.contains("Please enter a non-negative number"), output);
-        assertTrue(registry.contains("b2"));
-    }
-
-    @Test
-    void controllingAnOfflineDeviceOtherThanTurnOnIsRefused() {
-        String output = play(1000, "2\n1\n3\n1\n0\n");
-        assertTrue(output.contains("Hall Light is offline") || output.contains("Hall Light cannot"), output);
-        assertEquals(50, light.getBrightness());
-    }
-
-    @Test
-    void eventsAreOfferedPerDeviceAndLockEventsMoveTheLock() {
-        SmartLock lock = new SmartLock("l1", "Front Door", "Yale", true, "Hallway", "YL", 2, true, "0000", 100);
-        registry.register(lock);
-        String output = play(1000, "4\n1\n2\n0\n");
-        assertTrue(output.contains("The door was unlocked"), output);
-        assertFalse(lock.getLockStatus());
-    }
-
-    /** Humidity sensor whose readings are scripted, so the tests are not random. */
-    private static class ScriptedHumidity extends HumiditySensor {
-        private int value;
-        private final int next;
-
-        ScriptedHumidity(int start, int next) {
-            super("h1", "HS", "Bathroom Humidity", "Aqara", true, "Bathroom", 1, start);
-            this.value = start;
-            this.next = next;
+        for (Devices d : new DevicesLoader().load(devicesFile)) {
+            registry.register(d);
         }
-
-        @Override
-        public int getHumidity() {
-            return value;
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        PrintStream out = new PrintStream(bytes, true);
+        PowerManager power = new PowerManager(3000);
+        EventBus bus = new EventBus();
+        RuleEngine engine = new RuleEngine(registry, bus, power, out::println);
+        for (Rule r : new RulesLoader().load(folder.resolve("rules.csv"))) {
+            engine.addRule(r);
         }
+        List<Event> events = new EventsLoader().load(folder.resolve("events.csv"));
+        BufferedReader in = new BufferedReader(new StringReader(String.join("\n", lines) + (lines.length > 0 ? "\n" : "")));
 
-        @Override
-        public void readValue() {
-            value = next;
+        new Console(registry, engine, new DeviceControl(registry, power), bus, events, fileConsoleWritesTo, in, out).run();
+        return bytes.toString().replace("\r\n", "\n");
+    }
+
+    private String fileText() throws IOException {
+        return Files.readString(devicesFile);
+    }
+
+    // ---- menu and quitting ----
+
+    @Test
+    void zeroQuits() throws IOException {
+        assertTrue(session("0").contains("Goodbye."));
+    }
+
+    @Test
+    void theMenuListsEveryOption() throws IOException {
+        String out = session("0");
+        for (String item : new String[] {"1) List devices", "2) List rules", "3) Send a command",
+                "4) Trigger an event", "5) Run the simulation", "6) Add a device", "7) Remove a device", "0) Quit"}) {
+            assertTrue(out.contains(item), item);
         }
     }
 
-    private static class ScriptedMotion extends MotionSensor {
-        private final boolean detects;
+    @Test
+    void anythingThatIsNotAMenuNumberIsRefusedAndTheSessionContinues() throws IOException {
+        String out = session("abc", "", "9", "-1", "0");
+        assertEquals(4, out.split("Please choose a number from the menu.", -1).length - 1);
+        assertTrue(out.contains("Goodbye."));
+    }
 
-        ScriptedMotion(boolean detects) {
-            super("m1", "Hall Motion Sensor", "Aqara", true, "Hallway", "MS", 1);
-            this.detects = detects;
+    @Test
+    void endOfInputQuitsCleanly() throws IOException {
+        assertTrue(session().contains("Goodbye."));
+    }
+
+    @Test
+    void endOfInputInTheMiddleOfAQuestionQuitsCleanlyInsteadOfCrashing() throws IOException {
+        for (String[] partial : new String[][] {
+                {"3", "b1"}, {"4"}, {"4", "HUMIDITY"}, {"6", "BULB", "x1"}, {"7"}}) {
+            assertTrue(session(partial).contains("Goodbye."), String.join("|", partial));
         }
+    }
 
-        @Override
-        public void readValue() {
-            setMotionDetected(detects);
+    // ---- 1 and 2: listing ----
+
+    @Test
+    void optionOneListsTheDevices() throws IOException {
+        String out = session("1", "0");
+        assertTrue(out.contains("Hall Light") && out.contains("Kitchen Speaker") && out.contains("Front Door"), out);
+    }
+
+    @Test
+    void optionTwoListsRulesWithTheirTriggerAndTargetName() throws IOException {
+        String out = session("2", "0");
+        assertTrue(out.contains("when MOTION from m1, value >= 1 -> TURN_ON b1 (Hall Light)"), out);
+        assertTrue(out.contains("when DOOR_UNLOCKED from l1 -> TURN_ON b1 (Hall Light)"), out);
+        assertTrue(out.contains("when HUMIDITY from h1, value >= 80 -> PLAY s1 (Kitchen Speaker)"), out);
+    }
+
+    // ---- 3: send a command ----
+
+    @Test
+    void aCommandShowsTheDevicesNewState() throws IOException {
+        String out = session("3", "b1", "TURN_ON", "0");
+        assertTrue(out.contains("OK - Hall Light: ON, brightness 50"), out);
+        assertTrue(registry.get("b1").isOnline());
+    }
+
+    @Test
+    void brightenAndDimShowTheNewBrightness() throws IOException {
+        String out = session("3", "b1", "TURN_ON", "3", "b1", "BRIGHTEN", "30", "3", "b1", "DIM", "20", "0");
+        assertTrue(out.contains("brightness 80"), out);
+        assertTrue(out.contains("brightness 60"), out);
+    }
+
+    @Test
+    void actionNamesAreNotCaseSensitive() throws IOException {
+        assertTrue(session("3", "b1", "turn_on", "0").contains("OK - Hall Light: ON"));
+    }
+
+    @Test
+    void aLockShowsLockedAndUnlocked() throws IOException {
+        String out = session("3", "l1", "UNLOCK", "3", "l1", "LOCK", "0");
+        assertTrue(out.contains("OK - Front Door: ON, unlocked"), out);
+        assertTrue(out.contains("OK - Front Door: ON, locked"), out);
+    }
+
+    @Test
+    void speakerPlaybackChangesAreShown() throws IOException {
+        String out = session("3", "s1", "PLAY", "3", "s1", "PAUSE", "3", "s1", "RESUME", "3", "s1", "STOP", "0");
+        assertTrue(out.contains("PLAYING") && out.contains("PAUSED") && out.contains("STOP"), out);
+    }
+
+    @Test
+    void aCommandForAnUnknownDeviceIsRefusedWithAMessage() throws IOException {
+        assertTrue(session("3", "zzz", "TURN_ON", "0").contains("Could not do that: No device with id: zzz"));
+    }
+
+    @Test
+    void idsAreCaseSensitive() throws IOException {
+        assertTrue(session("3", "B1", "TURN_ON", "0").contains("No device with id: B1"));
+    }
+
+    @Test
+    void aSensorCannotBeCommanded() throws IOException {
+        assertTrue(session("3", "m1", "TURN_ON", "0").contains("Hall Motion cannot TURN_ON"));
+    }
+
+    @Test
+    void aDeviceCannotDoAnActionItDoesNotSupport() throws IOException {
+        assertTrue(session("3", "l1", "DIM", "0").contains("Front Door cannot DIM"));
+    }
+
+    @Test
+    void anOfflineDeviceRefusesEverythingExceptSwitchingOnOrOff() throws IOException {
+        assertTrue(session("3", "b1", "BRIGHTEN", "10", "0").contains("Hall Light is offline"));
+    }
+
+    @Test
+    void anUnknownActionListsTheValidOnesWithoutJavaInternals() throws IOException {
+        String out = session("3", "b1", "FLY", "0");
+        assertTrue(out.contains("'FLY' is not a valid action. Choose from ["), out);
+        assertFalse(out.contains("No enum constant"), out);
+    }
+
+    @Test
+    void anEmptyActionIsRefused() throws IOException {
+        assertTrue(session("3", "b1", "", "0").contains("is not a valid action"));
+    }
+
+    @Test
+    void theAmountMustBeAWholeNumber() throws IOException {
+        String out = session("3", "b1", "TURN_ON", "3", "b1", "BRIGHTEN", "abc", "0");
+        assertTrue(out.contains("'abc' is not a whole number."), out);
+        assertFalse(out.contains("For input string"), out);
+    }
+
+    @Test
+    void theAmountMustBeBetweenZeroAndOneHundred() throws IOException {
+        for (String bad : new String[] {"-30", "101", "2147483647"}) {
+            String out = session("3", "b1", "TURN_ON", "3", "b1", "BRIGHTEN", bad, "0");
+            assertTrue(out.contains("The amount must be between 0 and 100."), bad + ": " + out);
+            assertEquals(50, ((SmartBulb) registry.get("b1")).getBrightness(), bad);
         }
     }
 
-    private List<Event> record() {
-        List<Event> seen = new java.util.ArrayList<>();
-        bus.subscribe(seen::add);
-        return seen;
+    @Test
+    void anAmountIsOnlyAskedForBrightenAndDim() throws IOException {
+        assertFalse(session("3", "b1", "TURN_ON", "0").contains("Amount"));
     }
 
     @Test
-    void lockingAndUnlockingFromTheControlMenuPublishDoorEvents() {
-        registry.register(new SmartLock("l1", "Front Door", "Yale", true, "Hallway", "YL", 2, false, "0000", 100));
-        List<Event> seen = record();
+    void turningOnADeviceThatWouldExceedThePowerLimitIsRefused() throws IOException {
+        Files.writeString(devicesFile, DEVICES + "BULB,big,Floodlight,X,Y,Yard,99999,false\n");
+        String out = session("3", "big", "TURN_ON", "0");
+        assertTrue(out.contains("would exceed the limit"), out);
+        assertFalse(registry.get("big").isOnline());
+    }
 
-        play(1000, "2\n2\n1\n0\n");   // lock
-        play(1000, "2\n2\n2\n0\n");   // unlock
+    // ---- 4: trigger an event ----
 
-        assertEquals(List.of(EventType.DOOR_LOCKED, EventType.DOOR_UNLOCKED), seen.stream().map(Event::type).toList());
-        assertEquals("l1", seen.get(0).sourceId());
+    @Test
+    void anEventThatMatchesARuleRunsItsCommand() throws IOException {
+        String out = session("4", "MOTION", "m1", "1", "0");
+        assertTrue(out.contains("Applied TURN_ON to Hall Light (priority 1, triggered by MOTION)"), out);
+        assertTrue(registry.get("b1").isOnline());
     }
 
     @Test
-    void controllingALightPublishesNoEvent() {
-        List<Event> seen = record();
-        play(1000, "2\n1\n1\n0\n");
-        assertTrue(seen.isEmpty());
+    void doorEventsDoNotAskForAValue() throws IOException {
+        String out = session("4", "DOOR_UNLOCKED", "l1", "0");
+        assertFalse(out.contains("Value:"), out);
+        assertTrue(out.contains("Applied TURN_ON to Hall Light (priority 2, triggered by DOOR_UNLOCKED)"), out);
     }
 
     @Test
-    void aHumidityReadingThatCrossesTheThresholdPublishesAnEvent() {
-        registry.register(new ScriptedHumidity(40, 85));
-        List<Event> seen = record();
-        PowerManager pm = new PowerManager(1000);
-        RuleEngine engine = new RuleEngine(registry, bus, pm, s -> { });
-        engine.addRule(new Rule(e -> e.type() == EventType.HUMIDITY && e.value() >= 70, "b1", new Command(Action.TURN_ON), 1));
-
-        new Console(registry, bus, engine, new DeviceControl(registry, pm), pm, accountant, events, devicesFile, energyFile,
-                new BufferedReader(new StringReader("3\n1\n0\n")),
-                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8)).run();
-
-        assertEquals(1, seen.size());
-        assertEquals(EventType.HUMIDITY, seen.get(0).type());
-        assertEquals(85, seen.get(0).value());
-        assertTrue(light.isOnline());
+    void doorLockedAlsoSkipsTheValue() throws IOException {
+        assertFalse(session("4", "DOOR_LOCKED", "l1", "0").contains("Value:"));
     }
 
     @Test
-    void aHumidityReadingThatStaysOverTheThresholdDoesNotRepublish() {
-        registry.register(new ScriptedHumidity(75, 90));
-        List<Event> seen = record();
-        PowerManager pm = new PowerManager(1000);
-        RuleEngine engine = new RuleEngine(registry, bus, pm, s -> { });
-        engine.addRule(new Rule(e -> e.type() == EventType.HUMIDITY && e.value() >= 70, "b1", new Command(Action.TURN_ON), 1));
-
-        new Console(registry, bus, engine, new DeviceControl(registry, pm), pm, accountant, events, devicesFile, energyFile,
-                new BufferedReader(new StringReader("3\n1\n0\n")),
-                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8)).run();
-
-        assertTrue(seen.isEmpty());
-        assertFalse(light.isOnline());
+    void otherEventsStillAskForAValue() throws IOException {
+        for (String type : new String[] {"MOTION", "HUMIDITY", "TEMPERATURE"}) {
+            assertTrue(session("4", type, "x1", "1", "0").contains("Value:"), type);
+        }
     }
 
     @Test
-    void aHumidityReadingBelowTheThresholdPublishesNothing() {
-        registry.register(new ScriptedHumidity(40, 50));
-        List<Event> seen = record();
-        play(1000, "3\n1\n0\n");
-        assertTrue(seen.isEmpty());
+    void aReadingBelowTheRulesMinimumDoesNotTrigger() throws IOException {
+        String out = session("4", "HUMIDITY", "h1", "50", "0");
+        assertTrue(out.contains("No rule matched"), out);
+        assertFalse(out.contains("Applied PLAY"), out);
     }
 
     @Test
-    void humiditySensorsAreNotOfferedInTheEventMenu() {
-        registry.register(new ScriptedHumidity(40, 40));
-        PowerManager pm = new PowerManager(1000);
-        RuleEngine engine = new RuleEngine(registry, bus, pm, s -> { });
-        engine.addRule(new Rule(e -> e.type() == EventType.HUMIDITY && e.value() >= 70, "b1", new Command(Action.TURN_ON), 1));
-
-        ByteArrayOutputStream captured = new ByteArrayOutputStream();
-        new Console(registry, bus, engine, new DeviceControl(registry, pm), pm, accountant, events, devicesFile, energyFile,
-                new BufferedReader(new StringReader("4\n0\n")),
-                new PrintStream(captured, true, StandardCharsets.UTF_8)).run();
-
-        assertFalse(captured.toString(StandardCharsets.UTF_8).contains("Bathroom Humidity"));
+    void aReadingAtOrAboveTheMinimumTriggers() throws IOException {
+        assertTrue(session("4", "HUMIDITY", "h1", "85", "0").contains("Applied PLAY to Kitchen Speaker"));
     }
 
     @Test
-    void readingAMotionSensorThatDetectsSomeonePublishesMotionAndRulesReact() {
-        registry.register(new ScriptedMotion(true));
-        List<Event> seen = record();
-
-        String output = play(1000, "3\n1\n0\n");
-
-        assertEquals(1, seen.size());
-        assertEquals(EventType.MOTION, seen.get(0).type());
-        assertEquals("m1", seen.get(0).sourceId());
-        assertEquals(1, seen.get(0).value());
-        assertTrue(light.isOnline());
-        assertTrue(output.contains("detected motion in the Hallway"), output);
+    void eventTypesAreNotCaseSensitive() throws IOException {
+        assertTrue(session("4", "motion", "m1", "1", "0").contains("Applied TURN_ON"));
     }
 
     @Test
-    void readingAMotionSensorThatSeesNobodyPublishesNothing() {
-        registry.register(new ScriptedMotion(false));
-        List<Event> seen = record();
-
-        String output = play(1000, "3\n1\n0\n");
-
-        assertTrue(seen.isEmpty());
-        assertFalse(light.isOnline());
-        assertTrue(output.contains("detected no motion"), output);
+    void anEventNoRuleWantsIsReportedNotIgnored() throws IOException {
+        assertTrue(session("4", "TEMPERATURE", "h1", "30", "0").contains("No rule matched"));
     }
 
     @Test
-    void aRegisteredMotionSensorCanBeFiredFromTheEventMenu() {
-        registry.register(new ScriptedMotion(false));
-        List<Event> seen = record();
+    void anUnknownEventTypeListsTheValidOnes() throws IOException {
+        String out = session("4", "FOO", "0");
+        assertTrue(out.contains("'FOO' is not a valid event type. Choose from ["), out);
+        assertFalse(out.contains("No enum constant"), out);
+    }
 
-        // events list also holds m1, which is now a registered device, so it must be offered only once
-        String output = play(1000, "4\n1\n0\n");
+    @Test
+    void theEventValueMustBeAWholeNumber() throws IOException {
+        String out = session("4", "HUMIDITY", "h1", "abc", "0");
+        assertTrue(out.contains("'abc' is not a whole number."), out);
+    }
 
-        assertEquals(1, seen.size());
-        assertEquals("m1", seen.get(0).sourceId());
-        assertFalse(output.contains("Motion sensor m1"), output);
+    // ---- 5: simulation ----
+
+    @Test
+    void theSimulationReplaysTheEventsAndReportsEnergy() throws IOException {
+        String out = session("5", "0");
+        assertTrue(out.contains("t=2026-10-27T12:00 MOTION from m1"), out);
+        assertTrue(out.contains("t=2026-10-27T14:00 DOOR_UNLOCKED from l1"), out);
+        assertTrue(out.contains("Applied TURN_ON to Hall Light"), out);
+        assertTrue(out.contains("=== energy used (kWh) ==="), out);
+    }
+
+    @Test
+    void theSimulationBillsOnlyWhileDevicesAreOn() throws IOException {
+        // b1 (12 W) comes on at 12:00; the run ends one hour after the last event (15:00): 3 hours = 0.036 kWh.
+        String out = session("5", "0");
+        assertTrue(out.contains("b1   0.0360"), out);
+    }
+
+    @Test
+    void withNoEventsTheSimulationSaysSo() throws IOException {
+        Files.writeString(folder.resolve("events.csv"), "timestamp,type,source,value\n");
+        assertTrue(session("5", "0").contains("No events to run."));
+    }
+
+    // ---- 6: add a device ----
+
+    @Test
+    void addingADeviceRegistersItSavesItAndShowsItsState() throws IOException {
+        String out = session("6", "BULB", "b9", "Desk Lamp", "Ikea", "L-1", "Office", "9", "true", "0");
+
+        assertTrue(out.contains("Added and saved - Desk Lamp: ON, brightness 50"), out);
+        assertTrue(registry.contains("b9"));
+        assertTrue(fileText().endsWith("BULB,b9,Desk Lamp,Ikea,L-1,Office,9,true\n"), fileText());
+    }
+
+    @Test
+    void aSavedDeviceIsStillThereAfterARestart() throws IOException {
+        session("6", "BULB", "b9", "Desk Lamp", "Ikea", "L-1", "Office", "9", "true", "0");
+        session("0");   // a fresh session reloads the file
+        assertTrue(registry.contains("b9"));
+    }
+
+    @Test
+    void aNewDeviceCanBeCommandedStraightAway() throws IOException {
+        String out = session("6", "BULB", "b9", "Desk Lamp", "Ikea", "L-1", "Office", "9", "false",
+                "3", "b9", "TURN_ON", "0");
+        assertTrue(out.contains("OK - Desk Lamp: ON"), out);
+    }
+
+    @Test
+    void everyDeviceTypeCanBeAdded() throws IOException {
+        String[][] rows = {
+            {"TV", "t9"}, {"SPEAKER", "s9"}, {"LOCK", "l9"}, {"HUMIDITY", "h9"}, {"AIR", "a9"}, {"MOTION", "m9"}, {"BULB", "b9"}};
+        for (String[] r : rows) {
+            session("6", r[0], r[1], "Name", "Brand", "Model", "Room", "5", "true", "0");
+            assertTrue(registry.contains(r[1]), r[0]);
+        }
+    }
+
+    @Test
+    void typeAndOnlineAreNotCaseSensitive() throws IOException {
+        session("6", "bulb", "b9", "Lamp", "I", "M", "R", "9", "TRUE", "0");
+        assertTrue(registry.contains("b9"));
+        assertTrue(fileText().contains("BULB,b9,Lamp,I,M,R,9,true"), fileText());
+    }
+
+    @Test
+    void aBadDeviceIsRefusedAndNeitherMemoryNorFileChange() throws IOException {
+        String[][] bad = {
+            {"BULB", "b1", "Lamp", "9", "true"},        // duplicate id
+            {"TOASTER", "x1", "Lamp", "9", "true"},     // unknown type
+            {"BULB", "x1", "Lamp", "-5", "true"},       // negative watts
+            {"BULB", "x1", "Lamp", "NaN", "true"},      // not a real number
+            {"BULB", "x1", "Lamp", "abc", "true"},      // not a number
+            {"BULB", "", "Lamp", "9", "true"},          // empty id
+            {"BULB", "x1", "", "9", "true"},            // empty name
+            {"BULB", "x1", "A,B", "9", "true"},         // comma would break the row
+            {"BULB", "x1", "Lamp", "9", "yes"},         // not true/false
+        };
+        for (String[] b : bad) {
+            String out = session("6", b[0], b[1], b[2], "Brand", "Model", "Room", b[3], b[4], "0");
+            assertTrue(out.contains("Could not do that:"), String.join("|", b) + "\n" + out);
+            assertEquals(DEVICES, fileText(), String.join("|", b));
+            assertFalse(registry.contains("x1"), String.join("|", b));
+        }
+    }
+
+    @Test
+    void aDuplicateIdKeepsTheOriginalDevice() throws IOException {
+        session("6", "BULB", "b1", "Impostor", "I", "M", "R", "9", "true", "0");
+        assertEquals("Hall Light", registry.get("b1").getName());
+    }
+
+    @Test
+    void ifTheFileCannotBeWrittenTheDeviceIsNotAdded() throws IOException {
+        fileConsoleWritesTo = folder;   // a folder cannot be appended to
+        String out = session("6", "BULB", "b9", "Lamp", "I", "M", "R", "9", "true", "0");
+
+        assertTrue(out.contains("Could not do that:"), out);
+        assertFalse(registry.contains("b9"));
+    }
+
+    // ---- 7: remove a device ----
+
+    @Test
+    void removingADeviceForgetsItAndDeletesItsRow() throws IOException {
+        String out = session("7", "b1", "0");
+
+        assertTrue(out.contains("Removed and saved - Hall Light."), out);
+        assertFalse(registry.contains("b1"));
+        assertFalse(fileText().contains("b1,Hall Light"));
+        session("0");   // a fresh session reloads from the file, so the row really is gone
+        assertFalse(registry.contains("b1"));
+        assertTrue(fileText().contains("s1,Kitchen Speaker"));
+    }
+
+    @Test
+    void aRemovedDeviceCanNoLongerBeCommandedOrListed() throws IOException {
+        String out = session("7", "b1", "3", "b1", "TURN_ON", "1", "0");
+        assertTrue(out.contains("No device with id: b1"), out);
+        assertFalse(out.contains("Hall Light         "), out);
+    }
+
+    @Test
+    void removingAnUnknownDeviceChangesNothing() throws IOException {
+        for (String id : new String[] {"zzz", "", "B1"}) {
+            assertTrue(session("7", id, "0").contains("No device with id: " + id), id);
+            assertEquals(DEVICES, fileText(), id);
+        }
+    }
+
+    @Test
+    void removingTheSameDeviceTwiceFailsTheSecondTime() throws IOException {
+        String out = session("7", "b1", "7", "b1", "0");
+        assertTrue(out.contains("Removed and saved - Hall Light."), out);
+        assertTrue(out.contains("No device with id: b1"), out);
+    }
+
+    @Test
+    void spacesAroundTheIdAreIgnored() throws IOException {
+        assertTrue(session("7", "  b1  ", "0").contains("Removed and saved - Hall Light."));
+    }
+
+    @Test
+    void aRemovedIdCanBeAddedAgain() throws IOException {
+        session("7", "b1", "6", "BULB", "b1", "Hall Light", "Philips", "LB-100", "Hallway", "12", "false", "0");
+        session("0");
+        assertTrue(registry.contains("b1"));
+    }
+
+    @Test
+    void rulesThatTargetARemovedDeviceAreFlaggedInTheRulesList() throws IOException {
+        String out = session("7", "b1", "2", "0");
+        assertTrue(out.contains("TURN_ON b1 (no such device)"), out);
+        assertTrue(out.contains("PLAY s1 (Kitchen Speaker)"), out);
+    }
+
+    @Test
+    void aRuleForARemovedDeviceIsSkippedNotCrashed() throws IOException {
+        String out = session("7", "b1", "4", "MOTION", "m1", "1", "0");
+        assertTrue(out.contains("Skipped: no device 'b1'"), out);
+    }
+
+    @Test
+    void ifTheFileCannotBeUpdatedTheDeviceStays() throws IOException {
+        fileConsoleWritesTo = folder;   // a folder cannot be rewritten as a file
+        String out = session("7", "b1", "0");
+
+        assertTrue(out.contains("Could not do that:"), out);
+        assertTrue(registry.contains("b1"));
+        assertEquals(DEVICES, fileText());
     }
 }

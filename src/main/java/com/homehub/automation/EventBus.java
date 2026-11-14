@@ -10,6 +10,7 @@ public class EventBus {
         subscribers.add(subscriber);
     }
 
+    // Publishers do not need to know who listens.
     public void publish(Event event) {
         for (Consumer<Event> s : subscribers) {
             s.accept(event);

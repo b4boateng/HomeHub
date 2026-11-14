@@ -1,11 +1,16 @@
 package com.homehub.loaders;
 
 import com.homehub.devices.*;
+import com.homehub.exceptions.DataLoadException;
 
-// devices.csv columns: type,id,name,brand,model,room,watts,online
-// type is one of BULB, TV, SPEAKER, LOCK, HUMIDITY, AIR, MOTION.
-// Starting values the CSV doesn't carry (volume, brightness...) are the constants below;
-// the devices change them while the simulation runs.
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
+
+// Reads devices.csv and creates the right device type for each row.
 public class DevicesLoader extends CsvLoader<Devices> {
 
     private static final int START_BRIGHTNESS = 50;
@@ -25,6 +30,52 @@ public class DevicesLoader extends CsvLoader<Devices> {
         super(8);
     }
 
+    // Builds one device from the same 8 cells a devices.csv row has (type,id,name,brand,model,room,watts,online).
+    public Devices create(String[] cells) {
+        return parseRow(cells);
+    }
+
+    // Adds one row to the end of devices.csv, in the same 8-column format that load() reads.
+    public void append(Path path, String[] cells) {
+        for (String cell : cells) {
+            if (cell.contains(",")) {
+                throw new IllegalArgumentException("commas are not allowed in '" + cell + "'");
+            }
+        }
+        try {
+            String existing = Files.readString(path);
+            String prefix = existing.isEmpty() || existing.endsWith("\n") ? "" : "\n";
+            Files.writeString(path, prefix + String.join(",", cells) + "\n",
+                    StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            throw new DataLoadException(path.getFileName().toString(), 0, "cannot write file");
+        }
+    }
+
+    // Deletes the row with this device id from devices.csv and keeps every other line as it was.
+    public void removeRow(Path path, String id) {
+        String file = path.getFileName().toString();
+        try {
+            List<String> kept = new ArrayList<>();
+            boolean found = false;
+            for (String line : Files.readAllLines(path)) {
+                String[] cells = line.split(",", -1);
+                if (!found && cells.length > 1 && cells[1].trim().equals(id) && !cells[0].trim().equals("type")) {
+                    found = true;
+                    continue;
+                }
+                kept.add(line);
+            }
+            if (!found) {
+                throw new DataLoadException(file, 0, "no row for device '" + id + "'");
+            }
+            // "\n" like the existing file, not the platform separator, so lines are not all rewritten.
+            Files.writeString(path, String.join("\n", kept) + "\n");
+        } catch (IOException e) {
+            throw new DataLoadException(file, 0, "cannot write file");
+        }
+    }
+
     @Override
     protected Devices parseRow(String[] c) {
         String id = c[1];
@@ -32,7 +83,19 @@ public class DevicesLoader extends CsvLoader<Devices> {
         String brand = c[3];
         String model = c[4];
         String room = c[5];
-        double watts = Double.parseDouble(c[6]);
+        double watts;
+        try {
+            watts = Double.parseDouble(c[6]);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("watts must be a number but found '" + c[6] + "'");
+        }
+        if (id.isEmpty() || name.isEmpty()) {
+            throw new IllegalArgumentException("a device needs an id and a name");
+        }
+        // NaN, infinity and negative watts would break the power limit and the energy totals.
+        if (Double.isNaN(watts) || Double.isInfinite(watts) || watts < 0) {
+            throw new IllegalArgumentException("watts must be a number of 0 or more but found '" + c[6] + "'");
+        }
         boolean online = parseBoolean(c[7]);
 
         return switch (c[0]) {
@@ -48,7 +111,7 @@ public class DevicesLoader extends CsvLoader<Devices> {
         };
     }
 
-    // Boolean.parseBoolean would quietly turn a typo into false, so check it ourselves.
+    // Boolean.parseBoolean would quietly turn a typo into false.
     private static boolean parseBoolean(String text) {
         if (text.equals("true")) return true;
         if (text.equals("false")) return false;

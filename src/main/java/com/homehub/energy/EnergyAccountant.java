@@ -23,7 +23,9 @@ public class EnergyAccountant {
         this.lastBilled = start;
     }
 
+    //bills all devices from the last time they were billed up to now
     public void advanceTo(LocalDateTime now) {
+        // Going back in time would count energy twice.
         if (now.isBefore(lastBilled)) {
             throw new IllegalArgumentException("Time went backwards: " + now);
         }
@@ -33,6 +35,7 @@ public class EnergyAccountant {
             LocalDateTime hour = from.truncatedTo(ChronoUnit.HOURS);
             LocalDateTime next = hour.plusHours(1);
             LocalDateTime to = next.isBefore(now) ? next : now;
+            // dividing milliseconds by 3,600,000 to get the hourly equivalent
             double hours = Duration.between(from, to).toMillis() / 3_600_000.0;
             bill(hour, hours);
             from = to;
@@ -41,9 +44,11 @@ public class EnergyAccountant {
         lastBilled = now;
     }
 
+    //adds kWH to each device's total and the hour it was recorded
     private void bill(LocalDateTime hour, double hours) {
         for (Devices device : registry.all()) {
             if (device instanceof EnergyReporting meter) {
+                //power in kilowatts x time in hours
                 double kwh = meter.currentPowerWatts() / 1000.0 * hours;
                 kwhByDevice.merge(device.getId(), kwh, Double::sum);
                 if (kwh > 0) {

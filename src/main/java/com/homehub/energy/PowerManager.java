@@ -1,5 +1,6 @@
 package com.homehub.energy;
 
+//checks that turning a device on would not push the home's total power over its limit
 public class PowerManager implements PowerPolicy{
 
     private final double limitWatts;
@@ -17,6 +18,7 @@ public class PowerManager implements PowerPolicy{
 
     @Override 
     public boolean allows(double currentWatts, double additionalWatts){
+        // Exactly at the limit is allowed.
         return currentWatts + additionalWatts <= limitWatts;
     }
 

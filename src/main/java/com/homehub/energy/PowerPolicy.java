@@ -2,6 +2,7 @@ package com.homehub.energy;
 
 import com.homehub.exceptions.*;
 
+// Interface so the limit rule can change without touching DeviceControl class
 public interface PowerPolicy {
     boolean allows(double currentWatts, double additionalWatts);
 
