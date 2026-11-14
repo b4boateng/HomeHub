@@ -22,13 +22,13 @@ class DisplayTest {
     @Test
     void stateOfABulbShowsPowerAndBrightness() {
         display.state(new SmartBulb(70, 128, "b1", "M", "Hall Light", "B", "Hall", true, 10, ""));
-        assertEquals("Hall Light: ON, brightness 70", shown());
+        assertEquals("Hall Light: ON, brightness 70, colour temperature 128", shown());
     }
 
     @Test
     void stateOfAnOfflineDeviceSaysOff() {
         display.state(new SmartBulb(70, 128, "b1", "M", "Hall Light", "B", "Hall", false, 10, ""));
-        assertEquals("Hall Light: OFF, brightness 70", shown());
+        assertEquals("Hall Light: OFF, brightness 70, colour temperature 128", shown());
     }
 
     @Test
@@ -37,7 +37,22 @@ class DisplayTest {
         display.state(lock);
         lock.setLockStatus(false);
         display.state(lock);
-        assertEquals("Front Door: ON, locked\nFront Door: ON, unlocked", shown());
+        assertEquals("Front Door: ON, locked, battery 100%\nFront Door: ON, unlocked, battery 100%", shown());
+    }
+
+    @Test
+    void stateOfABulbShowsItsLastCommandWhenItHasOne() {
+        SmartBulb bulb = new SmartBulb(70, 128, "b1", "M", "Hall Light", "B", "Hall", true, 10, "");
+        bulb.execute(new Command(Action.COOLER, 40));
+        display.state(bulb);
+        assertEquals("Hall Light: ON, brightness 70, colour temperature 168 (last command: COOLER 40)", shown());
+    }
+
+    @Test
+    void stateOfATemperatureAndAHumiditySensorShowsTheirReading() {
+        display.state(new TemperatureSensor("tp1", "Thermometer", "Aqara", true, "Hall", "TH-1", 1));
+        display.state(new HumiditySensor("h1", "Hygrometer", "Aqara", true, "Bath", "TH-1", 1));
+        assertEquals("Thermometer: ON, reading 20\nHygrometer: ON, reading 50", shown());
     }
 
     @Test
@@ -61,9 +76,9 @@ class DisplayTest {
     }
 
     @Test
-    void stateOfASensorShowsOnlyPower() {
+    void stateOfAMotionSensorShowsItsReading() {
         display.state(new MotionSensor("m1", "Hall Motion", "Aqara", true, "Hall", "MS-1", 1));
-        assertEquals("Hall Motion: ON", shown());
+        assertEquals("Hall Motion: ON, reading 0", shown());
     }
 
     @Test

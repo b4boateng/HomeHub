@@ -15,3 +15,5 @@ LOCK,l2,Back Door,Yale,YL-5,Kitchen,2,true
 MOTION,m1,Hall Motion Sensor,Aqara,MS-1,Hallway,1,true
 MOTION,m2,Bathroom Motion Sensor,Aqara,MS-1,Bathroom,1,true
 MOTION,m3,Bedroom Motion Sensor,Aqara,MS-1,Bedroom,1,true
+TEMPERATURE,tp1,Living Room Thermometer,Aqara,TH-1,Living Room,1,true
+HUMIDITY,h1,Bathroom Hygrometer,Aqara,TH-1,Bathroom,1,true

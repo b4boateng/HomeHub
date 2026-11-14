@@ -93,7 +93,7 @@ class ConsoleTest {
     void theMenuListsEveryOption() throws IOException {
         String out = session("0");
         for (String item : new String[] {"1) List devices", "2) List rules", "3) Send a command",
-                "4) Trigger an event", "5) Run the simulation", "6) Add a device", "7) Remove a device", "0) Quit"}) {
+                "4) Trigger an event", "5) Run the simulation", "6) Add a device", "7) Remove a device", "8) Read sensors", "0) Quit"}) {
             assertTrue(out.contains(item), item);
         }
     }
@@ -157,9 +157,95 @@ class ConsoleTest {
 
     @Test
     void aLockShowsLockedAndUnlocked() throws IOException {
-        String out = session("3", "l1", "UNLOCK", "3", "l1", "LOCK", "0");
+        String out = session("3", "l1", "UNLOCK", "0000", "3", "l1", "LOCK", "0");
         assertTrue(out.contains("OK - Front Door: ON, unlocked"), out);
         assertTrue(out.contains("OK - Front Door: ON, locked"), out);
+    }
+
+    @Test
+    void unlockingNeedsTheLockCodeAndAWrongCodeLeavesTheDoorLocked() throws IOException {
+        String out = session("3", "l1", "UNLOCK", "1111", "0");
+        assertTrue(out.contains("Lock code: "), out);
+        assertTrue(out.contains("Could not do that: Wrong code for Front Door."), out);
+        assertFalse(out.contains("OK - "), out);
+        assertTrue(((SmartLock) registry.get("l1")).getLockStatus());
+    }
+
+    @Test
+    void lockingDoesNotAskForTheCode() throws IOException {
+        String out = session("3", "l1", "LOCK", "0");
+        assertFalse(out.contains("Lock code: "), out);
+        assertTrue(out.contains("OK - Front Door: ON, locked"), out);
+    }
+
+    @Test
+    void theLockShowsItsBatteryAndEachMoveUsesOnePercent() throws IOException {
+        String out = session("3", "l1", "UNLOCK", "0000", "3", "l1", "LOCK", "0");
+        assertTrue(out.contains("unlocked, battery 99%"), out);
+        assertTrue(out.contains("locked, battery 98%"), out);
+    }
+
+    @Test
+    void warmerAndCoolerAskForAnAmountAndChangeTheColourTemperature() throws IOException {
+        String out = session("3", "b1", "TURN_ON", "3", "b1", "WARMER", "28", "3", "b1", "COOLER", "50", "0");
+        assertTrue(out.contains("colour temperature 100"), out);
+        assertTrue(out.contains("colour temperature 150"), out);
+        assertTrue(out.contains("(last command: COOLER 50)"), out);
+    }
+
+    @Test
+    void aSpeakerCannotBeMadeWarmer() throws IOException {
+        assertTrue(session("3", "s1", "WARMER", "0").contains("Could not do that: Kitchen Speaker cannot WARMER"));
+    }
+
+    // ---- 8: read sensors ----
+
+    @Test
+    void readingSensorsShowsEachOnlineSensorWithItsReading() throws IOException {
+        Files.writeString(devicesFile, DEVICES
+                + "TEMPERATURE,tp1,Thermometer,Aqara,TH-1,Hallway,1,true\n"
+                + "HUMIDITY,h1,Hygrometer,Aqara,TH-1,Bath,1,true\n"
+                + "HUMIDITY,h2,Offline Hygrometer,Aqara,TH-1,Bath,1,false\n");
+        String out = session("8", "0");
+        assertTrue(out.contains("Thermometer: ON, reading "), out);
+        assertTrue(out.contains("Hygrometer: ON, reading "), out);
+        assertTrue(out.contains("Hall Motion: ON, reading "), out);
+        assertFalse(out.contains("Offline Hygrometer"), out);       // an offline sensor is not read
+        assertFalse(out.contains("Could not do that"), out);
+    }
+
+    @Test
+    void readingSensorsWithNoSensorsOnlineSaysSo() throws IOException {
+        Files.writeString(devicesFile, HEADER + "BULB,b1,Hall Light,Philips,LB-100,Hallway,12,false\n");
+        assertTrue(session("8", "0").contains("No sensors are online."));
+    }
+
+    @Test
+    void aSensorReadingIsPublishedSoRulesCanReactToIt() throws IOException {
+        Files.writeString(devicesFile, DEVICES + "HUMIDITY,h1,Hygrometer,Aqara,TH-1,Bath,1,true\n");
+        // Humidity is random (20 to 90) and the rule needs 80 or more, so read many times: it is all but certain to fire.
+        String[] reads = new String[201];
+        java.util.Arrays.fill(reads, "8");
+        reads[200] = "0";
+        String out = session(reads);
+        assertTrue(out.contains("Applied PLAY to Kitchen Speaker (priority 1, triggered by HUMIDITY)"), out);
+    }
+
+    @Test
+    void readingSensorsTwiceGivesFreshReadings() throws IOException {
+        Files.writeString(devicesFile, HEADER + "TEMPERATURE,tp1,Thermometer,Aqara,TH-1,Hallway,1,true\n");
+        String[] reads = new String[101];
+        java.util.Arrays.fill(reads, "8");
+        reads[100] = "0";
+        String out = session(reads);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (String line : out.split("\n")) {
+            int at = line.indexOf("Thermometer: ON, reading ");   // the line may start with the "Choose: " prompt
+            if (at >= 0) {
+                seen.add(line.substring(at));
+            }
+        }
+        assertTrue(seen.size() > 1, "a new reading should be taken every time: " + seen);
     }
 
     @Test
@@ -570,7 +656,8 @@ class ConsoleTest {
     void theDeviceTypesOfferedAreTheLoadersOwnList() throws IOException {
         String out = session("6", "BULB", "q1", "N", "B", "M", "R", "5", "true", "0");
         assertTrue(out.contains("Type " + DevicesLoader.TYPES + ": "), out);
-        assertFalse(out.contains("HUMIDITY") || out.contains("AIR"), out);
+        assertTrue(out.contains("TEMPERATURE") && out.contains("HUMIDITY"), out);
+        assertFalse(out.contains("AIR"), out);
     }
 
     @Test

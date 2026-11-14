@@ -20,16 +20,20 @@ public class SmartBulb extends Devices implements Controllable, EnergyReporting 
         // long maths, so a huge value cannot overflow and wrap around to the wrong end of the range.
         case BRIGHTEN -> setBrightness((int) Math.min(100L, (long) brightness + command.value()));
         case DIM      -> setBrightness((int) Math.max(0L, (long) brightness - command.value()));
+        // WARMER lowers the colour temperature, COOLER raises it (0 to 255, same overflow care as above).
+        case WARMER   -> setColorTemperature((int) Math.max(0L, (long) colorTemperature - command.value()));
+        case COOLER   -> setColorTemperature((int) Math.min(255L, (long) colorTemperature + command.value()));
         default       -> throw new IllegalStateException();
 
         }
-
+        // Remember what was last done, so the display can say why the bulb is the way it is.
+        setMessage("last command: " + command.action() + (command.value() != 0 ? " " + command.value() : ""));
     }
 
     @Override 
     public boolean supports(Action action){
        return switch (action) {
-        case TURN_ON, TURN_OFF, BRIGHTEN, DIM -> true;
+        case TURN_ON, TURN_OFF, BRIGHTEN, DIM, WARMER, COOLER -> true;
         default -> false;
     };
          

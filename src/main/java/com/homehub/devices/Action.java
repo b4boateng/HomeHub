@@ -7,6 +7,8 @@ public enum Action {
     UNLOCK,
     BRIGHTEN,
     DIM,
+    WARMER,
+    COOLER,
     PLAY,
     STOP,
     PAUSE,

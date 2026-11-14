@@ -14,7 +14,7 @@ import java.util.List;
 public class DevicesLoader extends CsvLoader<Devices> {
 
     // Every device type devices.csv may use. The console offers exactly these, so the two cannot drift apart.
-    public static final List<String> TYPES = List.of("BULB", "TV", "SPEAKER", "LOCK", "MOTION");
+    public static final List<String> TYPES = List.of("BULB", "TV", "SPEAKER", "LOCK", "MOTION", "TEMPERATURE", "HUMIDITY");
 
     private static final int START_BRIGHTNESS = 50;
     private static final int START_COLOR_TEMPERATURE = 128;
@@ -111,6 +111,8 @@ public class DevicesLoader extends CsvLoader<Devices> {
             case "TV", "SPEAKER" -> new MediaPlayer(id, name, brand, online, room, model, watts, START_VOLUME, false);
             case "LOCK"     -> new SmartLock(id, name, brand, online, room, model, watts, true, START_LOCK_CODE, START_BATTERY);
             case "MOTION"   -> new MotionSensor(id, name, brand, online, room, model, watts);
+            case "TEMPERATURE" -> new TemperatureSensor(id, name, brand, online, room, model, watts);
+            case "HUMIDITY" -> new HumiditySensor(id, name, brand, online, room, model, watts);
             default -> throw new IllegalArgumentException("unknown device type '" + c[0] + "'");
         };
     }

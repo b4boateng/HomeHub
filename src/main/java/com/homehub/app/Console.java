@@ -20,6 +20,11 @@ import com.homehub.devices.Action;
 import com.homehub.devices.Command;
 import com.homehub.devices.DeviceRegistry;
 import com.homehub.devices.Devices;
+import com.homehub.devices.HumiditySensor;
+import com.homehub.devices.MotionSensor;
+import com.homehub.devices.Sensing;
+import com.homehub.devices.SmartLock;
+import com.homehub.devices.TemperatureSensor;
 import com.homehub.energy.EnergyAccountant;
 import com.homehub.energy.EnergyRecord;
 import com.homehub.exceptions.HomeHubException;
@@ -84,7 +89,7 @@ public class Console {
         out.println();
         out.println("1) List devices   2) List rules   3) Send a command");
         out.println("4) Trigger an event   5) Run the simulation");
-        out.println("6) Add a device   7) Remove a device   0) Quit");
+        out.println("6) Add a device   7) Remove a device   8) Read sensors   0) Quit");
     }
 
     private void handle(String choice) {
@@ -96,6 +101,7 @@ public class Console {
             case "5" -> runSimulation();
             case "6" -> addDevice();
             case "7" -> removeDevice();
+            case "8" -> readSensors();
             default -> out.println("Please choose a number from the menu.");
         }
     }
@@ -108,7 +114,14 @@ public class Console {
         Action action = askChoice("Action", Action.class);
         control.requireSupports(id, action);                // so is an action the device cannot do, such as a lock dimming
 
-        int amount = (action == Action.BRIGHTEN || action == Action.DIM) ? askAmount() : 0;
+        // Unlocking from the console needs the lock's code (rules unlock without one: they are the owner's own automation).
+        if (action == Action.UNLOCK && registry.get(id) instanceof SmartLock lock && !lock.codeMatches(ask("Lock code: "))) {
+            throw new HomeHubException("Wrong code for " + lock.getName() + ".");
+        }
+
+        boolean needsAmount = action == Action.BRIGHTEN || action == Action.DIM
+                || action == Action.WARMER || action == Action.COOLER;
+        int amount = needsAmount ? askAmount() : 0;
 
         control.send(id, new Command(action, amount));
         out.print("OK - ");
@@ -124,6 +137,37 @@ public class Console {
         boolean hasReading = type != EventType.DOOR_LOCKED && type != EventType.DOOR_UNLOCKED;
         int value = hasReading ? askNumber("Value: ") : 0;
         bus.publish(new Event(type, LocalDateTime.now(), source, value));
+    }
+
+    // ---- 8: read the sensors ----
+
+    // Takes a new reading from every online sensor, shows it, and publishes it so any matching rule can act on it.
+    private void readSensors() {
+        boolean any = false;
+        for (Devices device : registry.all()) {
+            if (device instanceof Sensing sensor && device.isOnline()) {
+                any = true;
+                sensor.readValue();
+                display.state(device);
+                // "No motion" is not an event, so it is not published.
+                if (!(device instanceof MotionSensor) || sensor.getReading() == 1) {
+                    bus.publish(new Event(eventTypeOf(device), LocalDateTime.now(), device.getId(), sensor.getReading()));
+                }
+            }
+        }
+        if (!any) {
+            out.println("No sensors are online.");
+        }
+    }
+
+    private static EventType eventTypeOf(Devices sensor) {
+        if (sensor instanceof TemperatureSensor) {
+            return EventType.TEMPERATURE;
+        }
+        if (sensor instanceof HumiditySensor) {
+            return EventType.HUMIDITY;
+        }
+        return EventType.MOTION;
     }
 
     // ---- 5: run the simulation ----

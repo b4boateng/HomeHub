@@ -1,10 +1,12 @@
 package com.homehub.devices;
 
+import com.homehub.exceptions.HomeHubException;
+
 public class SmartLock extends Devices implements Controllable{
     private boolean isLocked;
-    private String code;
+    private final String code;
     private int batteryLevel;
-    
+
     public SmartLock(String id, String name, String brand, boolean onlineStatus, String room, String modelNumber, double ratedWatts, boolean isLocked, String code, int batteryLevel){
         super(id, name, brand, onlineStatus, room, modelNumber, ratedWatts);
         this.isLocked = isLocked;
@@ -23,36 +25,34 @@ public class SmartLock extends Devices implements Controllable{
 
     }
 
-    public void setCode(String value){
-        this.code = value;
-    }
-
-    public String getCode(){
-        return code;
-    }
-
-    public void setBatteryLevel(int value){
-        this.batteryLevel = value;
+    // The code is never handed out, only checked, so the console can ask for it before unlocking.
+    public boolean codeMatches(String attempt){
+        return code.equals(attempt);
     }
 
     public int getBatteryLevel(){
         return batteryLevel;
     }
 
-    @Override 
+    @Override
     public void execute(Command command) {
+        if (batteryLevel == 0) {
+            throw new HomeHubException(getName() + " battery is flat");
+        }
         switch(command.action()){
             case LOCK ->   setLockStatus(true);
-            
+
             case UNLOCK ->   setLockStatus(false);
 
             default -> throw new IllegalStateException("Unsupported action: " + command.action());
         }
+        // Every lock or unlock uses one percent of the battery.
+        batteryLevel--;
     }
 
-    
 
-   @Override 
+
+   @Override
     public boolean supports(Action action){
        return switch (action) {
         case  LOCK , UNLOCK -> true;
@@ -62,4 +62,3 @@ public class SmartLock extends Devices implements Controllable{
 }
 
 }
-

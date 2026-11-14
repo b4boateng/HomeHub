@@ -24,4 +24,9 @@ public class MotionSensor extends Devices implements Sensing {
     public void readValue() {
         motionDetected = RANDOM.nextBoolean();
     }
+
+    @Override
+    public int getReading() {
+        return motionDetected ? 1 : 0;
+    }
 }

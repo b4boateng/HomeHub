@@ -2,6 +2,7 @@ package com.homehub.devices;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.homehub.exceptions.HomeHubException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,7 @@ class DeviceDetailsTest {
 
     @BeforeEach
     void setUp() {
-        bulb = new SmartBulb(50, 128, "b1", "LB", "Bulb", "Philips", "Hall", false, 60, "hi");
+        bulb = new SmartBulb(50, 128, "b1", "LB", "Bulb", "Philips", "Hall", false, 60, "");
         lock = new SmartLock("l1", "Door", "Yale", true, "Hall", "YL", 2, true, "1234", 90);
         player = new MediaPlayer("t1", "TV", "Samsung", true, "Lounge", "QN", 120, 20, false);
     }
@@ -48,20 +49,52 @@ class DeviceDetailsTest {
         assertEquals(255, bulb.getColorTemperature());
         bulb.setColorTemperature(-1);
         assertEquals(0, bulb.getColorTemperature());
-
-        assertEquals("hi", bulb.getMessage());
-        bulb.setMessage("bye");
-        assertEquals("bye", bulb.getMessage());
     }
 
     @Test
-    void lockKeepsItsCodeAndBattery() {
-        assertEquals("1234", lock.getCode());
+    void warmerAndCoolerMoveTheColourTemperatureAndStopAtTheEnds() {
+        bulb.execute(new Command(Action.WARMER, 28));
+        assertEquals(100, bulb.getColorTemperature());
+        bulb.execute(new Command(Action.COOLER, 50));
+        assertEquals(150, bulb.getColorTemperature());
+        bulb.execute(new Command(Action.COOLER, Integer.MAX_VALUE));
+        assertEquals(255, bulb.getColorTemperature());
+        bulb.execute(new Command(Action.WARMER, Integer.MAX_VALUE));
+        assertEquals(0, bulb.getColorTemperature());
+        assertTrue(bulb.supports(Action.WARMER) && bulb.supports(Action.COOLER));
+    }
+
+    @Test
+    void theBulbRemembersTheLastCommandAsItsMessage() {
+        assertEquals("", bulb.getMessage());
+        bulb.execute(new Command(Action.TURN_ON));
+        assertEquals("last command: TURN_ON", bulb.getMessage());
+        bulb.execute(new Command(Action.BRIGHTEN, 30));
+        assertEquals("last command: BRIGHTEN 30", bulb.getMessage());
+    }
+
+    @Test
+    void lockChecksTheCodeWithoutGivingItOut() {
+        assertTrue(lock.codeMatches("1234"));
+        assertFalse(lock.codeMatches("0000"));
+        assertFalse(lock.codeMatches(""));
+    }
+
+    @Test
+    void everyLockOrUnlockUsesOnePercentOfBattery() {
         assertEquals(90, lock.getBatteryLevel());
-        lock.setCode("9999");
-        lock.setBatteryLevel(10);
-        assertEquals("9999", lock.getCode());
-        assertEquals(10, lock.getBatteryLevel());
+        lock.execute(new Command(Action.UNLOCK));
+        lock.execute(new Command(Action.LOCK));
+        assertEquals(88, lock.getBatteryLevel());
+    }
+
+    @Test
+    void aLockWithAFlatBatteryCannotMoveAndStaysAsItWas() {
+        SmartLock flat = new SmartLock("l2", "Back", "Yale", true, "Hall", "YL", 2, true, "1234", 0);
+        HomeHubException e = assertThrows(HomeHubException.class, () -> flat.execute(new Command(Action.UNLOCK)));
+        assertEquals("Back battery is flat", e.getMessage());
+        assertTrue(flat.getLockStatus());
+        assertEquals(0, flat.getBatteryLevel());
     }
 
 }

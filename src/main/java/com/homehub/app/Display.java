@@ -7,6 +7,7 @@ import com.homehub.automation.Rule;
 import com.homehub.devices.DeviceRegistry;
 import com.homehub.devices.Devices;
 import com.homehub.devices.MediaPlayer;
+import com.homehub.devices.Sensing;
 import com.homehub.devices.SmartBulb;
 import com.homehub.devices.SmartLock;
 
@@ -30,9 +31,16 @@ class Display {
     void state(Devices d) {
         StringBuilder sb = new StringBuilder(d.getName()).append(": ").append(d.isOnline() ? "ON" : "OFF");
         if (d instanceof SmartBulb b) {
-            sb.append(", brightness ").append(b.getBrightness());
+            sb.append(", brightness ").append(b.getBrightness())
+                    .append(", colour temperature ").append(b.getColorTemperature());
+            if (!b.getMessage().isEmpty()) {
+                sb.append(" (").append(b.getMessage()).append(")");
+            }
         } else if (d instanceof SmartLock l) {
-            sb.append(", ").append(l.getLockStatus() ? "locked" : "unlocked");
+            sb.append(", ").append(l.getLockStatus() ? "locked" : "unlocked")
+                    .append(", battery ").append(l.getBatteryLevel()).append("%");
+        } else if (d instanceof Sensing s) {
+            sb.append(", reading ").append(s.getReading());
         } else if (d instanceof MediaPlayer p) {
             sb.append(", volume ").append(p.getVolume()).append(p.isMuted() ? " (muted)" : "")
                     .append(", ").append(p.getPlaybackState());
