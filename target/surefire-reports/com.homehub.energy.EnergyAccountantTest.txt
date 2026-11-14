@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.homehub.energy.EnergyAccountantTest
--------------------------------------------------------------------------------
-Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in com.homehub.energy.EnergyAccountantTest
