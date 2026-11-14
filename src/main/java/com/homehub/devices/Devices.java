@@ -2,7 +2,7 @@ package com.homehub.devices;
 
 //  holds what all devices share; subclasses add their own behaviour.
 public abstract class Devices{
-    private String id;
+    private final String id;
     private String modelNumber;
     private String name;
     private String brand;
@@ -24,11 +24,6 @@ public abstract class Devices{
     
     public String getId(){
         return id;
-
-    }
-
-    public void setId(String id){
-        this.id = id;
 
     }
 

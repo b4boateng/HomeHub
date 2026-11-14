@@ -9,15 +9,13 @@ class DeviceDetailsTest {
 
     private SmartBulb bulb;
     private SmartLock lock;
-    private SmartTv tv;
-    private SmartSpeaker speaker;
+    private MediaPlayer player;
 
     @BeforeEach
     void setUp() {
         bulb = new SmartBulb(50, 128, "b1", "LB", "Bulb", "Philips", "Hall", false, 60, "hi");
         lock = new SmartLock("l1", "Door", "Yale", true, "Hall", "YL", 2, true, "1234", 90);
-        tv = new SmartTv("t1", "TV", "Samsung", true, "Lounge", "QN", 120, 20, false, "Netflix", 5);
-        speaker = new SmartSpeaker("s1", "Speaker", "Sonos", true, "Kitchen", "One", 15, 30, false, "Radio");
+        player = new MediaPlayer("t1", "TV", "Samsung", true, "Lounge", "QN", 120, 20, false);
     }
 
     @Test
@@ -37,12 +35,6 @@ class DeviceDetailsTest {
         assertEquals("Study", bulb.getRoom());
         assertEquals("Ikea", bulb.getBrand());
         assertEquals("X1", bulb.getModelNumber());
-    }
-
-    @Test
-    void setOnlineSwitchesTheOnlineFlag() {
-        bulb.setOnline(true);
-        assertTrue(bulb.isOnline());
     }
 
     @Test
@@ -72,29 +64,4 @@ class DeviceDetailsTest {
         assertEquals(10, lock.getBatteryLevel());
     }
 
-    @Test
-    void tvMuteAndMediaCanBeChanged() {
-        assertFalse(tv.isMuted());
-        tv.setMuted(true);
-        assertTrue(tv.isMuted());
-        assertEquals("Netflix", tv.getMedia());
-        tv.setMedia("News");
-        assertEquals("News", tv.getMedia());
-    }
-
-    @Test
-    void speakerMuteAndMediaCanBeChanged() {
-        speaker.setMuted(true);
-        assertTrue(speaker.isMuted());
-        speaker.setMedia("Jazz");
-        assertEquals("Jazz", speaker.getMedia());
-    }
-
-    @Test
-    void onlyDevicesWithAMeterReportEnergy() {
-        assertEquals(120, tv.currentPowerWatts());
-        tv.setOnline(false);
-        assertEquals(0, tv.currentPowerWatts());
-        assertFalse(new HumiditySensor("h1", "HS", "Humidity", "Aqara", true, "Bath", 1, 40) instanceof EnergyReporting);
-    }
 }

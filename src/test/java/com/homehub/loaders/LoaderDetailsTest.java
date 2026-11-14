@@ -37,19 +37,25 @@ class LoaderDetailsTest {
                 "TV,2,n,b,m,r,10,true",
                 "SPEAKER,3,n,b,m,r,10,true",
                 "LOCK,4,n,b,m,r,10,true",
-                "HUMIDITY,5,n,b,m,r,10,true",
-                "AIR,6,n,b,m,r,10,true",
-                "MOTION,7,n,b,m,r,1,true");
+                "MOTION,5,n,b,m,r,1,true");
 
         List<Devices> d = new DevicesLoader().load(file);
-        assertInstanceOf(MotionSensor.class, d.get(6));
 
         assertInstanceOf(SmartBulb.class, d.get(0));
-        assertInstanceOf(SmartTv.class, d.get(1));
-        assertInstanceOf(SmartSpeaker.class, d.get(2));
+        assertInstanceOf(MediaPlayer.class, d.get(1));    // a TV and a speaker are the same kind of device
+        assertInstanceOf(MediaPlayer.class, d.get(2));
         assertInstanceOf(SmartLock.class, d.get(3));
-        assertInstanceOf(HumiditySensor.class, d.get(4));
-        assertInstanceOf(AirQualityMonitor.class, d.get(5));
+        assertInstanceOf(MotionSensor.class, d.get(4));
+    }
+
+    @Test
+    void everyTypeTheLoaderOffersCanBeBuilt() {
+        // The console shows DevicesLoader.TYPES as the choices, so each one must really work.
+        DevicesLoader loader = new DevicesLoader();
+        for (String type : DevicesLoader.TYPES) {
+            Devices d = loader.create(new String[] {type, "id-" + type, "Name", "Brand", "Model", "Room", "5", "true"});
+            assertEquals("id-" + type, d.getId(), type);
+        }
     }
 
     @Test

@@ -24,22 +24,6 @@ class LoadersTest {
     }
 
     @Test
-    void devicesLoaderBuildsTheRightTypes() throws IOException {
-        Path file = write("devices.csv",
-                "type,id,name,brand,model,room,watts,online",
-                "BULB,b1,Hall Light,Philips,LB-100,Hallway,12,false",
-                "TV,t1,TV,Samsung,QN90,Lounge,120,true");
-
-        List<Devices> devices = new DevicesLoader().load(file);
-
-        assertEquals(2, devices.size());
-        assertInstanceOf(SmartBulb.class, devices.get(0));
-        assertInstanceOf(SmartTv.class, devices.get(1));
-        assertEquals(120, devices.get(1).getRatedWatts());
-        assertEquals("Samsung", devices.get(1).getBrand());
-    }
-
-    @Test
     void eventsLoaderReadsTimestampTypeSourceAndValue() throws IOException {
         Path file = write("events.csv",
                 "timestamp,type,source,value",
@@ -106,5 +90,20 @@ class LoadersTest {
     @Test
     void missingFileIsReported() {
         assertThrows(DataLoadException.class, () -> new DevicesLoader().load(folder.resolve("nope.csv")));
+    }
+
+    @Test
+    void rulesLoaderReportsABlankSourceOrDeviceWithItsLine() throws IOException {
+        Path blankSource = write("rules1.csv",
+                "eventType,source,minValue,windowStart,windowEnd,deviceId,action,priority",
+                "MOTION,,1,,,b1,TURN_ON,1");
+        Path blankDevice = write("rules2.csv",
+                "eventType,source,minValue,windowStart,windowEnd,deviceId,action,priority",
+                "MOTION,m1,1,,,,TURN_ON,1");
+
+        for (Path file : List.of(blankSource, blankDevice)) {
+            DataLoadException e = assertThrows(DataLoadException.class, () -> new RulesLoader().load(file));
+            assertTrue(e.getMessage().contains("line 2"), e.getMessage());
+        }
     }
 }

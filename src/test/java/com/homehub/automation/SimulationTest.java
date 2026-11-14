@@ -20,9 +20,24 @@ class SimulationTest {
     private final Simulation sim = new Simulation(bus, accountant, log::add);
 
     @Test
-    void keepsTheServicesItWasGiven() {
-        assertSame(bus, sim.getBus());
-        assertSame(accountant, sim.getAccountant());
+    void refusesMissingServices() {
+        assertThrows(NullPointerException.class, () -> new Simulation(null, accountant, log::add));
+        assertThrows(NullPointerException.class, () -> new Simulation(bus, null, log::add));
+        assertThrows(NullPointerException.class, () -> new Simulation(bus, accountant, null));
+    }
+
+    @Test
+    void usesTheServicesItWasGiven() {
+        List<Event> seen = new ArrayList<>();
+        bus.subscribe(seen::add);
+        Event e = new Event(EventType.MOTION, START.plusHours(1), "m1", 1);
+        sim.addEvent(e);
+
+        sim.run(START.plusHours(2));
+
+        assertEquals(List.of(e), seen);                                  // published on its bus
+        assertEquals(START.plusHours(2), accountant.getLastBilled());    // billed through its accountant
+        assertEquals(1, log.size());                                     // logged through its log
     }
 
     @Test

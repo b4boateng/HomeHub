@@ -2,19 +2,18 @@ package com.homehub.devices;
 
 import com.homehub.exceptions.*;
 
-public class SmartSpeaker extends Devices implements Controllable, EnergyReporting, Playable{
+// Anything that plays media, such as a TV or a speaker. They behave the same, so one class covers both.
+public class MediaPlayer extends Devices implements Controllable, EnergyReporting, Playable {
 
     private int volume;
     private boolean isMuted;
-    private String media;
     private PlaybackState playbackState = PlaybackState.STOP;
 
-    public SmartSpeaker(String id, String name, String brand, boolean onlineStatus, String room, String modelNumber, double ratedWatts, int volume, boolean isMuted, String media){
+    public MediaPlayer(String id, String name, String brand, boolean onlineStatus, String room, String modelNumber,
+                       double ratedWatts, int volume, boolean isMuted) {
         super(id, name, brand, onlineStatus, room, modelNumber, ratedWatts);
-       this.volume = volume;
+        this.volume = volume;
         this.isMuted = isMuted;
-        this.media = media;
-
     }
 
     public int getVolume() {
@@ -22,9 +21,8 @@ public class SmartSpeaker extends Devices implements Controllable, EnergyReporti
     }
 
     public void setVolume(int volume) {
-       this.volume = Math.max(0, Math.min(100, volume));
+        this.volume = Math.max(0, Math.min(100, volume));
     }
-    
 
     public boolean isMuted() {
         return isMuted;
@@ -32,14 +30,6 @@ public class SmartSpeaker extends Devices implements Controllable, EnergyReporti
 
     public void setMuted(boolean isMuted) {
         this.isMuted = isMuted;
-    }
-
-    public void setMedia(String media){
-      this.media = media;
-    }
-
-    public String getMedia(){
-      return media;
     }
 
     public PlaybackState getPlaybackState() {
@@ -73,7 +63,7 @@ public class SmartSpeaker extends Devices implements Controllable, EnergyReporti
     @Override
     public void play() {
         if (!isOnline()) {
-            throw new DeviceOfflineException(getName());
+            throw new HomeHubException(getName() + " is offline");
         }
         playbackState = PlaybackState.PLAYING;
     }
@@ -99,9 +89,6 @@ public class SmartSpeaker extends Devices implements Controllable, EnergyReporti
 
     @Override
     public double currentPowerWatts() {
-       return  isOnline() ? getRatedWatts() : 0;
+        return isOnline() ? getRatedWatts() : 0;
     }
-
-   
-
 }

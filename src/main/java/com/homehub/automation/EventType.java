@@ -5,6 +5,5 @@ public enum EventType {
     DOOR_LOCKED,
     DOOR_UNLOCKED,
     TEMPERATURE,
-    HUMIDITY,
-
+    HUMIDITY
 }

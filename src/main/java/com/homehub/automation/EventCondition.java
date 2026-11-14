@@ -1,5 +1,7 @@
 package com.homehub.automation;
 
+import java.util.Objects;
+
 // The condition a rules.csv row describes: an event type from one source, at least minValue, optionally inside a time window.
 public class EventCondition implements Condition {
 
@@ -9,8 +11,11 @@ public class EventCondition implements Condition {
     private final TimeWindow window;   // null means any time of day
 
     public EventCondition(EventType type, String sourceId, int minValue, TimeWindow window) {
-        this.type = type;
-        this.sourceId = sourceId;
+        this.type = Objects.requireNonNull(type);
+        this.sourceId = Objects.requireNonNull(sourceId);
+        if (sourceId.isBlank()) {
+            throw new IllegalArgumentException("Source ID cannot be blank");
+        }
         this.minValue = minValue;
         this.window = window;
     }
@@ -20,7 +25,7 @@ public class EventCondition implements Condition {
         return event.type() == type
                 && event.sourceId().equals(sourceId)
                 && event.value() >= minValue
-                && (window == null || window.test(event));
+                && (window == null || window.contains(event.timestamp().toLocalTime()));
     }
 
     @Override

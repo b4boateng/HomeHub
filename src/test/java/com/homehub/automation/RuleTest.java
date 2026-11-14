@@ -36,4 +36,11 @@ class RuleTest {
         assertTrue(rule.matches(motion));
         assertFalse(rule.matches(new Event(EventType.MOTION, motion.timestamp(), "m2", 1)));
     }
+
+    @Test
+    void aBlankTargetDeviceIsRefused() {
+        assertThrows(IllegalArgumentException.class, () -> new Rule(e -> true, "", new Command(Action.TURN_ON), 1));
+        assertThrows(IllegalArgumentException.class, () -> new Rule(e -> true, "  ", new Command(Action.TURN_ON), 1));
+    }
+
 }

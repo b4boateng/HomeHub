@@ -6,6 +6,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,10 +18,12 @@ public class EnergyAccountant {
     private final DeviceRegistry registry;
     private final Map<String, Double> kwhByDevice = new LinkedHashMap<>();
     private final Map<LocalDateTime, Map<String, Double>> kwhByHour = new TreeMap<>();
+    private final LocalDateTime start;
     private LocalDateTime lastBilled;
 
     public EnergyAccountant(DeviceRegistry registry, LocalDateTime start) {
         this.registry = registry;
+        this.start = start;
         this.lastBilled = start;
     }
 
@@ -72,19 +76,30 @@ public class EnergyAccountant {
         return history;
     }
 
-    public DeviceRegistry getRegistry() {
-        return this.registry;
+    // Saved history with this run folded in. Hours this run covered are replaced by this run's figures and every other
+    // hour is kept, so replaying the same period twice gives the same history instead of counting it twice.
+    // An hour this run only partly covered counts as covered, and a run that billed no time replaces nothing.
+    public List<EnergyRecord> mergedWith(List<EnergyRecord> saved) {
+        LocalDateTime firstHour = start.truncatedTo(ChronoUnit.HOURS);
+        boolean billedAnyTime = lastBilled.isAfter(start);
+        List<EnergyRecord> merged = new ArrayList<>();
+        for (EnergyRecord r : saved) {
+            boolean coveredByThisRun = billedAnyTime && !r.hour().isBefore(firstHour) && r.hour().isBefore(lastBilled);
+            if (!coveredByThisRun) {
+                merged.add(r);
+            }
+        }
+        merged.addAll(getHistory());
+        merged.sort(Comparator.comparing(EnergyRecord::hour).thenComparing(EnergyRecord::deviceId));
+        return merged;
     }
 
+    // A read-only snapshot in device order: callers can neither change the accountant's totals nor see later billing change theirs.
     public Map<String, Double> getKwhByDevice() {
-        return this.kwhByDevice;
+        return Collections.unmodifiableMap(new LinkedHashMap<>(kwhByDevice));
     }
 
     public LocalDateTime getLastBilled() {
         return this.lastBilled;
-    }
-
-    public void setLastBilled(LocalDateTime lastBilled) {
-        this.lastBilled = lastBilled;
     }
 }

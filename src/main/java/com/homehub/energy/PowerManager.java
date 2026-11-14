@@ -6,8 +6,8 @@ public class PowerManager implements PowerPolicy{
     private final double limitWatts;
 
     public PowerManager(double limitWatts) {
-        if (limitWatts < 0){
-            throw new IllegalArgumentException("limitWatts cannot be negative" + limitWatts);
+        if (!Double.isFinite(limitWatts) || limitWatts < 0) {
+            throw new IllegalArgumentException("Power limit must be finite and non-negative but was " + limitWatts);
         }
         this.limitWatts = limitWatts;
     }

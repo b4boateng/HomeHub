@@ -55,4 +55,32 @@ class EventBusTest {
 
         assertEquals(2, received.size());
     }
+
+    @Test
+    void aNullSubscriberIsRefused() {
+        assertThrows(NullPointerException.class, () -> bus.subscribe(null));
+    }
+
+    @Test
+    void aNullEventIsRefused() {
+        bus.subscribe(received::add);
+        assertThrows(NullPointerException.class, () -> bus.publish(null));
+        assertTrue(received.isEmpty());
+    }
+
+    @Test
+    void aSubscriberAddedWhilePublishingDoesNotBreakTheLoopAndMissesThatEvent() {
+        List<String> order = new ArrayList<>();
+        bus.subscribe(e -> {
+            order.add("first");
+            bus.subscribe(x -> order.add("late"));
+        });
+
+        assertDoesNotThrow(() -> bus.publish(event));
+        assertEquals(List.of("first"), order);          // the late one did not see the event being published
+
+        order.clear();
+        bus.publish(event);
+        assertTrue(order.contains("late"));              // but it hears the next one
+    }
 }

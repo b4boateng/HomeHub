@@ -43,7 +43,7 @@ public class Application {
 
             DeviceControl control = new DeviceControl(registry, powerManager);
             BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-            new Console(registry, engine, control, bus, events, devicesFile, in, System.out).run();
+            new Console(registry, engine, control, bus, events, devicesFile, folder.resolve("energy.csv"), in, System.out).run();
 
         } catch (HomeHubException | IllegalArgumentException e) {
             // A bad or missing data file ends up here, so say which one instead of crashing.

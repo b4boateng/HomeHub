@@ -1,4 +1,0 @@
-eventType,source,minValue,windowStart,windowEnd,deviceId,action,priority
-MOTION,M1,1,22:00,06:00,L1,TURN_ON,1
-TEMPERATURE,TS1,26,,,AC1,TURN_ON,1
-MOTION,M1,1,,,L2,TURN_ON,1

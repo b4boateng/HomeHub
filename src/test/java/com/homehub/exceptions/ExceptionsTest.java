@@ -20,44 +20,6 @@ class ExceptionsTest {
     }
 
     @Test
-    void offlineDeviceThrowsDeviceOfflineException() {
-        SmartTv tv = new SmartTv("t1", "TV", "Samsung", false, "Lounge", "QN", 120, 20, false, "Netflix", 5);
-        assertThrows(DeviceOfflineException.class, tv::play);
-    }
-
-    @Test
-    void unknownIdThrowsDeviceNotFoundException() {
-        assertThrows(DeviceNotFoundException.class, () -> new DeviceRegistry().get("nope"));
-    }
-
-    @Test
-    void overTheLimitThrowsPowerLimitExceededException() {
-        PowerManager manager = new PowerManager(100);
-        assertThrows(PowerLimitExceededException.class, () -> manager.require(90, 20));
-    }
-
-    @Test
-    void sameDeviceSamePriorityDifferentActionThrowsRuleConflictException() {
-        RuleEngine engine = new RuleEngine(new DeviceRegistry(), new EventBus(), new PowerManager(100), s -> { });
-        engine.addRule(new Rule(ALWAYS, "b1", new Command(Action.TURN_ON), 1));
-        assertThrows(RuleConflictException.class,
-                () -> engine.addRule(new Rule(ALWAYS, "b1", new Command(Action.TURN_OFF), 1)));
-    }
-
-    @Test
-    void dataLoadExceptionNamesFileAndLine() {
-        DataLoadException ex = assertThrows(DataLoadException.class, () -> {
-            throw new DataLoadException("devices.csv", 3, "bad number");
-        });
-        assertEquals("devices.csv line 3: bad number", ex.getMessage());
-    }
-
-    @Test
-    void everyCustomExceptionIsAHomeHubException() {
-        assertThrows(HomeHubException.class, () -> new DeviceRegistry().get("nope"));
-    }
-
-    @Test
     void ruleEngineRefusesTurnOnWhenOverLimitAndKeepsRunning() {
         DeviceRegistry registry = new DeviceRegistry();
         registry.register(bulb("b1", true, 60));

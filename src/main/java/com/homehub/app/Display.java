@@ -6,10 +6,9 @@ import java.util.Map;
 import com.homehub.automation.Rule;
 import com.homehub.devices.DeviceRegistry;
 import com.homehub.devices.Devices;
+import com.homehub.devices.MediaPlayer;
 import com.homehub.devices.SmartBulb;
 import com.homehub.devices.SmartLock;
-import com.homehub.devices.SmartSpeaker;
-import com.homehub.devices.SmartTv;
 
 // Only formats output; it never changes any state.
 class Display {
@@ -34,12 +33,9 @@ class Display {
             sb.append(", brightness ").append(b.getBrightness());
         } else if (d instanceof SmartLock l) {
             sb.append(", ").append(l.getLockStatus() ? "locked" : "unlocked");
-        } else if (d instanceof SmartTv t) {
-            sb.append(", volume ").append(t.getVolume()).append(t.isMuted() ? " (muted)" : "")
-                    .append(", channel ").append(t.getChannel()).append(", ").append(t.getPlaybackState());
-        } else if (d instanceof SmartSpeaker s) {
-            sb.append(", volume ").append(s.getVolume()).append(s.isMuted() ? " (muted)" : "")
-                    .append(", ").append(s.getPlaybackState());
+        } else if (d instanceof MediaPlayer p) {
+            sb.append(", volume ").append(p.getVolume()).append(p.isMuted() ? " (muted)" : "")
+                    .append(", ").append(p.getPlaybackState());
         }
         out.println(sb);
     }

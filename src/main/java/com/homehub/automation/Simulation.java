@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 public class Simulation {
@@ -16,27 +17,13 @@ public class Simulation {
     private final Consumer<String> log;
 
     public Simulation(EventBus bus, EnergyAccountant accountant, Consumer<String> log) {
-        this.bus = bus;
-        this.accountant = accountant;
-        this.log = log;
+        this.bus = Objects.requireNonNull(bus);
+        this.accountant = Objects.requireNonNull(accountant);
+        this.log = Objects.requireNonNull(log);
     }
 
     public List<Event> getEvents() {
         return List.copyOf(events);
-    }
-
-  
-
-    public EventBus getBus() {
-        return this.bus;
-    }
-
-    public EnergyAccountant getAccountant() {
-        return this.accountant;
-    }
-
-    public Consumer<String> getLog() {
-        return this.log;
     }
 
     public void run(LocalDateTime end){

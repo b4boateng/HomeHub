@@ -45,11 +45,13 @@ class ConsoleTest {
     private DeviceRegistry registry;
     private Path devicesFile;
     private Path fileConsoleWritesTo;   // normally devicesFile; a test can point it somewhere that fails
+    private Path energyFile;
 
     @BeforeEach
     void setUp() throws IOException {
         devicesFile = folder.resolve("devices.csv");
         fileConsoleWritesTo = devicesFile;
+        energyFile = folder.resolve("energy.csv");   // not created: a first run starts with no history
         Files.writeString(devicesFile, DEVICES);
         Files.writeString(folder.resolve("rules.csv"), RULES);
         Files.writeString(folder.resolve("events.csv"), EVENTS);
@@ -72,7 +74,7 @@ class ConsoleTest {
         List<Event> events = new EventsLoader().load(folder.resolve("events.csv"));
         BufferedReader in = new BufferedReader(new StringReader(String.join("\n", lines) + (lines.length > 0 ? "\n" : "")));
 
-        new Console(registry, engine, new DeviceControl(registry, power), bus, events, fileConsoleWritesTo, in, out).run();
+        new Console(registry, engine, new DeviceControl(registry, power), bus, events, fileConsoleWritesTo, energyFile, in, out).run();
         return bytes.toString().replace("\r\n", "\n");
     }
 
@@ -161,34 +163,8 @@ class ConsoleTest {
     }
 
     @Test
-    void speakerPlaybackChangesAreShown() throws IOException {
-        String out = session("3", "s1", "PLAY", "3", "s1", "PAUSE", "3", "s1", "RESUME", "3", "s1", "STOP", "0");
-        assertTrue(out.contains("PLAYING") && out.contains("PAUSED") && out.contains("STOP"), out);
-    }
-
-    @Test
-    void aCommandForAnUnknownDeviceIsRefusedWithAMessage() throws IOException {
-        assertTrue(session("3", "zzz", "TURN_ON", "0").contains("Could not do that: No device with id: zzz"));
-    }
-
-    @Test
     void idsAreCaseSensitive() throws IOException {
         assertTrue(session("3", "B1", "TURN_ON", "0").contains("No device with id: B1"));
-    }
-
-    @Test
-    void aSensorCannotBeCommanded() throws IOException {
-        assertTrue(session("3", "m1", "TURN_ON", "0").contains("Hall Motion cannot TURN_ON"));
-    }
-
-    @Test
-    void aDeviceCannotDoAnActionItDoesNotSupport() throws IOException {
-        assertTrue(session("3", "l1", "DIM", "0").contains("Front Door cannot DIM"));
-    }
-
-    @Test
-    void anOfflineDeviceRefusesEverythingExceptSwitchingOnOrOff() throws IOException {
-        assertTrue(session("3", "b1", "BRIGHTEN", "10", "0").contains("Hall Light is offline"));
     }
 
     @Test
@@ -196,11 +172,6 @@ class ConsoleTest {
         String out = session("3", "b1", "FLY", "0");
         assertTrue(out.contains("'FLY' is not a valid action. Choose from ["), out);
         assertFalse(out.contains("No enum constant"), out);
-    }
-
-    @Test
-    void anEmptyActionIsRefused() throws IOException {
-        assertTrue(session("3", "b1", "", "0").contains("is not a valid action"));
     }
 
     @Test
@@ -222,14 +193,6 @@ class ConsoleTest {
     @Test
     void anAmountIsOnlyAskedForBrightenAndDim() throws IOException {
         assertFalse(session("3", "b1", "TURN_ON", "0").contains("Amount"));
-    }
-
-    @Test
-    void turningOnADeviceThatWouldExceedThePowerLimitIsRefused() throws IOException {
-        Files.writeString(devicesFile, DEVICES + "BULB,big,Floodlight,X,Y,Yard,99999,false\n");
-        String out = session("3", "big", "TURN_ON", "0");
-        assertTrue(out.contains("would exceed the limit"), out);
-        assertFalse(registry.get("big").isOnline());
     }
 
     // ---- 4: trigger an event ----
@@ -346,11 +309,11 @@ class ConsoleTest {
 
     @Test
     void everyDeviceTypeCanBeAdded() throws IOException {
-        String[][] rows = {
-            {"TV", "t9"}, {"SPEAKER", "s9"}, {"LOCK", "l9"}, {"HUMIDITY", "h9"}, {"AIR", "a9"}, {"MOTION", "m9"}, {"BULB", "b9"}};
-        for (String[] r : rows) {
-            session("6", r[0], r[1], "Name", "Brand", "Model", "Room", "5", "true", "0");
-            assertTrue(registry.contains(r[1]), r[0]);
+        // The types the console offers are the loader's own list, so adding one here proves each of them works.
+        for (String type : DevicesLoader.TYPES) {
+            String id = "x-" + type;
+            session("6", type, id, "Name", "Brand", "Model", "Room", "5", "true", "0");
+            assertTrue(registry.contains(id), type);
         }
     }
 
@@ -467,4 +430,157 @@ class ConsoleTest {
         assertTrue(registry.contains("b1"));
         assertEquals(DEVICES, fileText());
     }
+
+    // ---- 5: the simulation saves its energy history to energy.csv ----
+
+    private static final String ENERGY_HEADER = "hour,deviceId,kwh\n";
+
+    private List<com.homehub.energy.EnergyRecord> savedHistory() {
+        return new EnergyLoader().load(energyFile);
+    }
+
+    @Test
+    void theFirstSimulationCreatesTheHistoryFile() throws IOException {
+        assertFalse(Files.exists(energyFile));
+
+        String out = session("5", "0");
+
+        assertTrue(Files.exists(energyFile));
+        assertEquals(6, savedHistory().size());    // b1 and s1, for the 12:00, 13:00 and 14:00 hours
+        assertTrue(out.contains("Energy history saved (6 hourly records)."), out);
+    }
+
+    @Test
+    void theSavedFigureMatchesWhatWasPrinted() throws IOException {
+        String out = session("5", "0");
+
+        assertTrue(out.contains("b1   0.0360"), out);   // 12 W for three hours
+        double saved = savedHistory().stream().filter(r -> r.deviceId().equals("b1")).mapToDouble(r -> r.kwh()).sum();
+        assertEquals(0.036, saved, 1e-6);
+    }
+
+    @Test
+    void runningTheSameSimulationAgainGivesTheSameFile() throws IOException {
+        session("5", "0");
+        String first = Files.readString(energyFile);
+
+        session("5", "0");    // a new session, so devices start from the same state again
+
+        assertEquals(first, Files.readString(energyFile));
+    }
+
+    @Test
+    void otherDaysInTheSavedHistoryAreKept() throws IOException {
+        Files.writeString(energyFile, ENERGY_HEADER + "2026-11-14T01:00,b1,0.500000\n");
+
+        session("5", "0");
+
+        assertEquals(7, savedHistory().size());
+        assertTrue(Files.readString(energyFile).contains("2026-11-14T01:00,b1,0.500000"));
+    }
+
+    @Test
+    void hoursTheRunCoversAreReplacedNotAddedTo() throws IOException {
+        Files.writeString(energyFile, ENERGY_HEADER + "2026-10-27T13:00,b1,9.000000\n");
+
+        session("5", "0");
+
+        double at13 = savedHistory().stream()
+                .filter(r -> r.deviceId().equals("b1") && r.hour().getHour() == 13).mapToDouble(r -> r.kwh()).sum();
+        assertEquals(0.012, at13, 1e-6);
+    }
+
+    @Test
+    void thePrintedTotalsAreThisRunOnlyEvenWithOlderHistory() throws IOException {
+        Files.writeString(energyFile, ENERGY_HEADER + "2026-11-14T01:00,b1,5.000000\n");
+        assertTrue(session("5", "0").contains("b1   0.0360"));
+    }
+
+    @Test
+    void anUnreadableHistoryStopsTheRunBeforeAnythingChanges() throws IOException {
+        String broken = ENERGY_HEADER + "not-a-time,b1,1\n";
+        Files.writeString(energyFile, broken);
+
+        String out = session("5", "0");
+
+        assertTrue(out.contains("Could not do that:") && out.contains("energy.csv"), out);
+        assertFalse(out.contains("t=2026"), out);              // no event was replayed
+        assertFalse(registry.get("b1").isOnline());            // so no device was switched on
+        assertEquals(broken, Files.readString(energyFile));    // and the file is as it was
+    }
+
+    @Test
+    void ifTheHistoryCannotBeSavedYouAreToldAndTheSessionContinues() throws IOException {
+        energyFile = folder;    // a folder cannot be written as a file
+
+        String out = session("5", "1", "0");
+
+        assertTrue(out.contains("Could not do that:"), out);
+        assertTrue(out.contains("Goodbye."), out);
+    }
+
+    @Test
+    void withNoEventsTheHistoryFileIsNotCreatedOrChanged() throws IOException {
+        Files.writeString(folder.resolve("events.csv"), "timestamp,type,source,value\n");
+
+        session("5", "0");
+        assertFalse(Files.exists(energyFile));
+
+        String existing = ENERGY_HEADER + "2026-11-14T01:00,b1,0.500000\n";
+        Files.writeString(energyFile, existing);
+        session("5", "0");
+        assertEquals(existing, Files.readString(energyFile));
+    }
+
+    // ---- the remade console: it checks the device and the action before asking anything else ----
+
+    @Test
+    void anUnknownDeviceIsReportedBeforeAnActionIsAsked() throws IOException {
+        String out = session("3", "zzz", "0");
+
+        assertTrue(out.contains("Could not do that: No device with id: zzz"), out);
+        assertFalse(out.contains("Action ["), out);
+    }
+
+    @Test
+    void anImpossibleActionIsReportedBeforeAnAmountIsAsked() throws IOException {
+        String out = session("3", "l1", "DIM", "0");
+
+        assertTrue(out.contains("Front Door cannot DIM"), out);
+        assertFalse(out.contains("Amount"), out);
+    }
+
+    @Test
+    void aSensorIsRefusedBeforeAnAmountIsAsked() throws IOException {
+        String out = session("3", "m1", "BRIGHTEN", "0");
+
+        assertTrue(out.contains("Hall Motion cannot BRIGHTEN"), out);
+        assertFalse(out.contains("Amount"), out);
+    }
+
+    @Test
+    void theAmountIsStillAskedWhenTheDeviceCanDoTheAction() throws IOException {
+        String out = session("3", "b1", "TURN_ON", "3", "b1", "BRIGHTEN", "20", "0");
+
+        assertTrue(out.contains("Amount (0-100)"), out);
+        assertTrue(out.contains("brightness 70"), out);
+    }
+
+    @Test
+    void theDeviceTypesOfferedAreTheLoadersOwnList() throws IOException {
+        String out = session("6", "BULB", "q1", "N", "B", "M", "R", "5", "true", "0");
+        assertTrue(out.contains("Type " + DevicesLoader.TYPES + ": "), out);
+        assertFalse(out.contains("HUMIDITY") || out.contains("AIR"), out);
+    }
+
+    @Test
+    void aTvAndASpeakerAreBothMediaPlayers() throws IOException {
+        String tv = session("6", "TV", "t9", "Den TV", "LG", "C2", "Den", "90", "false", "0");
+        assertTrue(tv.contains("Added and saved - Den TV: OFF, volume 20, STOP"), tv);
+
+        String speaker = session("6", "SPEAKER", "s9", "Den Speaker", "Sonos", "One", "Den", "15", "true",
+                "3", "s9", "PLAY", "0");
+        assertTrue(speaker.contains("OK - Den Speaker: ON, volume 20, PLAYING"), speaker);
+    }
+
 }

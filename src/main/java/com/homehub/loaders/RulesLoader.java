@@ -20,10 +20,13 @@ public class RulesLoader extends CsvLoader<Rule> {
         Action action = Action.valueOf(c[6]);
         int priority = Integer.parseInt(c[7]);
 
-        // Only build a TimeWindow if the window cells are filled in.
-        TimeWindow window = c[3].isEmpty() && c[4].isEmpty()
-                ? null
-                : new TimeWindow(LocalTime.parse(c[3]), LocalTime.parse(c[4]));
+        // No window cells means "any time of day"; a half-filled window is a mistake, not a default.
+        TimeWindow window = null;
+        if (!c[3].isEmpty() && !c[4].isEmpty()) {
+            window = new TimeWindow(LocalTime.parse(c[3]), LocalTime.parse(c[4]));
+        } else if (!c[3].isEmpty() || !c[4].isEmpty()) {
+            throw new IllegalArgumentException("Both window start and end must be provided");
+        }
 
         Condition condition = new EventCondition(type, source, minValue, window);
 

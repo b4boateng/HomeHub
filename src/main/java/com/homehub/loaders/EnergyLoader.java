@@ -27,8 +27,8 @@ public class EnergyLoader extends CsvLoader<EnergyRecord> {
             throw new IllegalArgumentException("the device id is empty");
         }
         double kwh = Double.parseDouble(c[2]);
-        if (kwh < 0) {
-            throw new IllegalArgumentException("kwh cannot be negative but found " + c[2]);
+        if (!Double.isFinite(kwh) || kwh < 0) {
+            throw new IllegalArgumentException("kwh must be a finite, non-negative number but found " + c[2]);
         }
         return new EnergyRecord(hour, c[1], kwh);
     }

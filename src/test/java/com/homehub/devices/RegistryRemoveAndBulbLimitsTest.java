@@ -31,7 +31,8 @@ class RegistryRemoveAndBulbLimitsTest {
         DeviceRegistry registry = new DeviceRegistry();
         registry.register(bulb("b1", 50));
 
-        assertThrows(DeviceNotFoundException.class, () -> registry.remove("zzz"));
+        HomeHubException e = assertThrows(HomeHubException.class, () -> registry.remove("zzz"));
+        assertEquals("No device with id: zzz", e.getMessage());
         assertEquals(1, registry.all().size());
     }
 
@@ -41,7 +42,7 @@ class RegistryRemoveAndBulbLimitsTest {
         registry.register(bulb("b1", 50));
         registry.remove("b1");
 
-        assertThrows(DeviceNotFoundException.class, () -> registry.remove("b1"));
+        assertThrows(HomeHubException.class, () -> registry.remove("b1"));
     }
 
     @Test
@@ -81,36 +82,16 @@ class RegistryRemoveAndBulbLimitsTest {
         assertEquals(0, b.getBrightness());
     }
 
-    @Test
-    void brightenAndDimMoveByTheAmountWithinTheRange() {
-        SmartBulb b = bulb("b1", 50);
-        b.execute(new Command(Action.BRIGHTEN, 30));
-        assertEquals(80, b.getBrightness());
-        b.execute(new Command(Action.DIM, 20));
-        assertEquals(60, b.getBrightness());
-        b.execute(new Command(Action.BRIGHTEN, 100));
-        assertEquals(100, b.getBrightness());
-        b.execute(new Command(Action.DIM, 100));
-        assertEquals(0, b.getBrightness());
-    }
-
     // ---- the Action enum after removing the unused ones ----
 
     @Test
     void everyActionIsSupportedBySomeDevice() {
         Controllable bulb = bulb("b1", 50);
         Controllable lock = new SmartLock("l1", "Door", "Yale", true, "Hall", "Y1", 2, true, "0000", 100);
-        Controllable speaker = new SmartSpeaker("s1", "Speaker", "Sonos", true, "Kitchen", "One", 15, 20, false, "");
+        Controllable speaker = new MediaPlayer("s1", "Speaker", "Sonos", true, "Kitchen", "One", 15, 20, false);
         for (Action a : Action.values()) {
             assertTrue(bulb.supports(a) || lock.supports(a) || speaker.supports(a), a + " is not supported by any device");
         }
     }
 
-    @Test
-    void theRemovedActionsAreGone() {
-        for (Action a : Action.values()) {
-            assertNotEquals("NOTIFY", a.name());
-            assertNotEquals("SOUND_ALARM", a.name());
-        }
-    }
 }

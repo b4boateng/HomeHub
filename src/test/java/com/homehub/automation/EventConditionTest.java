@@ -65,4 +65,16 @@ class EventConditionTest {
     void timeWindowDescribesItself() {
         assertEquals("between 22:00 and 06:00", new TimeWindow(LocalTime.of(22, 0), LocalTime.of(6, 0)).describe());
     }
+
+    @Test
+    void aMissingTypeOrSourceIsRefused() {
+        assertThrows(NullPointerException.class, () -> new EventCondition(null, "m1", 1, null));
+        assertThrows(NullPointerException.class, () -> new EventCondition(EventType.MOTION, null, 1, null));
+    }
+
+    @Test
+    void aBlankSourceIsRefused() {
+        assertThrows(IllegalArgumentException.class, () -> new EventCondition(EventType.MOTION, "", 1, null));
+        assertThrows(IllegalArgumentException.class, () -> new EventCondition(EventType.MOTION, "   ", 1, null));
+    }
 }

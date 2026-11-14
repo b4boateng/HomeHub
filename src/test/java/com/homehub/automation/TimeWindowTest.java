@@ -2,15 +2,13 @@ package com.homehub.automation;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import org.junit.jupiter.api.Test;
 
 class TimeWindowTest {
 
     private boolean inside(TimeWindow window, int hour, int minute) {
-        Event e = new Event(EventType.MOTION, LocalDateTime.of(2026, 10, 27, hour, minute), "m1", 1);
-        return window.test(e);
+        return window.contains(LocalTime.of(hour, minute));
     }
 
     @Test
@@ -56,4 +54,11 @@ class TimeWindowTest {
         assertThrows(NullPointerException.class, () -> new TimeWindow(null, LocalTime.of(6, 0)));
         assertThrows(NullPointerException.class, () -> new TimeWindow(LocalTime.of(22, 0), null));
     }
+
+    @Test
+    void midnightBelongsToAWrappingWindowButNotToADaytimeOne() {
+        assertTrue(new TimeWindow(LocalTime.of(22, 0), LocalTime.of(6, 0)).contains(LocalTime.MIDNIGHT));
+        assertFalse(new TimeWindow(LocalTime.of(9, 0), LocalTime.of(17, 0)).contains(LocalTime.MIDNIGHT));
+    }
+
 }

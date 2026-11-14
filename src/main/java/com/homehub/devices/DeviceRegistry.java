@@ -21,7 +21,7 @@ public class DeviceRegistry {
    public Devices get(String id){
         Devices dev = devices.get(id);
         if (dev == null) {
-            throw new DeviceNotFoundException(id);
+            throw notFound(id);
         }
         return dev;
    }
@@ -29,9 +29,13 @@ public class DeviceRegistry {
    public Devices remove(String id) {
         Devices removed = devices.remove(id);
         if (removed == null) {
-            throw new DeviceNotFoundException(id);
+            throw notFound(id);
         }
         return removed;
+   }
+
+   private static HomeHubException notFound(String id) {
+        return new HomeHubException("No device with id: " + id);
    }
 
    public boolean contains(String id) {

@@ -70,7 +70,7 @@ class EnergyAccountantTest {
     @Test
     void devicesThatDoNotReportEnergyAreNotBilled() {
         registry.register(new SmartLock("l1", "Door", "Yale", true, "Hall", "YL", 2, true, "1234", 90));
-        registry.register(new HumiditySensor("h1", "HS", "Humidity", "Aqara", true, "Bath", 1, 40));
+        registry.register(new MotionSensor("m1", "Motion", "Aqara", true, "Bath", "MS-1", 1));
 
         accountant.advanceTo(START.plusHours(1));
 

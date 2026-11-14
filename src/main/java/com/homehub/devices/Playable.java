@@ -8,7 +8,9 @@ public interface Playable{
     public void resume();
     
     public enum PlaybackState{
-        PLAYING, PAUSED, STOP, RESUME,
+        PLAYING,
+        PAUSED,
+        STOP
     }
 
     

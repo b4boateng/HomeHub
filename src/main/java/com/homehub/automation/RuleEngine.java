@@ -26,8 +26,23 @@ public class RuleEngine {
 
     public void addRule(Rule rule) {
         // Reject the rule before adding it if it conflicts with one already there.
-        ConflictDetector.check(rule, rules);
+        rejectIfConflicting(rule);
         rules.add(rule);
+    }
+
+    // A conflict is two rules on one device with the same priority but different actions: the engine could not tell which should win.
+    private void rejectIfConflicting(Rule newRule) {
+        for (Rule other : rules) {
+            boolean sameDevice = other.getTargetDeviceId().equals(newRule.getTargetDeviceId());
+            boolean samePriority = other.getPriority() == newRule.getPriority();
+            boolean differentAction = other.getCommand().action() != newRule.getCommand().action();
+
+            if (sameDevice && samePriority && differentAction) {
+                throw new HomeHubException("Rules for '" + newRule.getTargetDeviceId()
+                        + "' both have priority " + newRule.getPriority() + " but ask for "
+                        + other.getCommand().action() + " and " + newRule.getCommand().action());
+            }
+        }
     }
 
     public List<Rule> getRules() {

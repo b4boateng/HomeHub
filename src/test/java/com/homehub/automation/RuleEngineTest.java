@@ -14,7 +14,9 @@ import org.junit.jupiter.api.Test;
 
 class RuleEngineTest {
 
-    private static final TimeWindow NIGHT = new TimeWindow(LocalTime.of(22, 0), LocalTime.of(6, 0));
+    // Motion from m1 between 22:00 and 06:00, the same trigger the shipped rules use.
+    private static final Condition NIGHT = new EventCondition(EventType.MOTION, "m1", 1,
+            new TimeWindow(LocalTime.of(22, 0), LocalTime.of(6, 0)));
 
     private DeviceRegistry registry;
     private EventBus bus;
@@ -94,7 +96,7 @@ class RuleEngineTest {
 
     @Test
     void aFailingRuleDoesNotStopTheRulesAfterIt() {
-        registry.register(new SmartTv("t1", "TV", "Samsung", false, "Lounge", "QN", 120, 20, false, "", 1));
+        registry.register(new MediaPlayer("t1", "TV", "Samsung", false, "Lounge", "QN", 120, 20, false));
         engine.addRule(new Rule(e -> true, "t1", new Command(Action.PLAY), 1));
         engine.addRule(new Rule(e -> true, "b1", new Command(Action.TURN_ON), 2));
         motionAt(12, 0);

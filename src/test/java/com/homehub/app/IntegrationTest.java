@@ -22,7 +22,7 @@ class IntegrationTest {
     Path folder;
 
     private void copyData() throws IOException {
-        for (String name : new String[] {"devices.csv", "rules.csv", "events.csv"}) {
+        for (String name : new String[] {"devices.csv", "rules.csv", "events.csv", "energy.csv"}) {
             Files.copy(RESOURCES.resolve(name), folder.resolve(name), StandardCopyOption.REPLACE_EXISTING);
         }
     }
@@ -118,12 +118,50 @@ class IntegrationTest {
     }
 
     @Test
-    void theBundledDataFilesAreValid() {
-        // Guards the shipped data: bad watts, empty ids or unknown actions would stop the app from starting.
-        assertDoesNotThrow(() -> {
-            copyData();
-            String out = runApplication("0");
-            assertFalse(out.contains("Could not start"), out);
-        });
+    void aSimulationSavesEnergyHistoryAndKeepsTheOlderDaysInTheShippedFile() throws IOException {
+        copyData();
+        String older = Files.readString(folder.resolve("energy.csv"));
+        assertTrue(older.contains("2026-11-14T01:00,b1"), "the shipped file has older rows");
+
+        String out = runApplication("5", "0");
+
+        String saved = Files.readString(folder.resolve("energy.csv"));
+        assertTrue(out.contains("Energy history saved ("), out);
+        assertTrue(saved.contains("2026-11-14T01:00,b1"), "the older rows must survive");
+        assertTrue(saved.contains("2026-10-27T"), "the simulated day must be added");
+    }
+
+    @Test
+    void theSameSimulationInTwoLaunchesGivesTheSameHistory() throws IOException {
+        copyData();
+        runApplication("5", "0");
+        String first = Files.readString(folder.resolve("energy.csv"));
+
+        runApplication("5", "0");
+
+        assertEquals(first, Files.readString(folder.resolve("energy.csv")));
+    }
+
+    @Test
+    void startsFineWithNoEnergyFileAndCreatesItOnTheFirstSimulation() throws IOException {
+        copyData();
+        Files.delete(folder.resolve("energy.csv"));
+
+        String out = runApplication("1", "5", "0");
+
+        assertFalse(out.contains("Could not start"), out);
+        assertTrue(Files.exists(folder.resolve("energy.csv")));
+    }
+
+    @Test
+    void aCorruptEnergyFileDoesNotStopTheAppStartingButStopsTheSimulation() throws IOException {
+        copyData();
+        Files.writeString(folder.resolve("energy.csv"), "hour,deviceId,kwh\nnonsense,b1,1\n");
+
+        String out = runApplication("5", "1", "0");
+
+        assertFalse(out.contains("Could not start"), out);
+        assertTrue(out.contains("Could not do that:") && out.contains("energy.csv"), out);
+        assertTrue(out.contains("Goodbye."), out);
     }
 }

@@ -24,17 +24,22 @@ public class DeviceControl {
         return total;
     }
 
-    public void send(String deviceId, Command command) {
+    // Throws if this device cannot be given this action at all (a sensor, or a lock asked to dim).
+    public void requireSupports(String deviceId, Action action) {
         Devices device = registry.get(deviceId);
-
-        // Sensors cannot be commanded, so check the capability.
-        if (!(device instanceof Controllable controllable) || !controllable.supports(command.action())) {
-            throw new HomeHubException(device.getName() + " cannot " + command.action());
+        if (!(device instanceof Controllable controllable) || !controllable.supports(action)) {
+            throw new HomeHubException(device.getName() + " cannot " + action);
         }
+    }
+
+    public void send(String deviceId, Command command) {
+        requireSupports(deviceId, command.action());
+        Devices device = registry.get(deviceId);
+        Controllable controllable = (Controllable) device;
 
         // Offline devices can only be turned on or off.
         if (!device.isOnline() && command.action() != Action.TURN_ON && command.action() != Action.TURN_OFF) {
-            throw new DeviceOfflineException(device.getName());
+            throw new HomeHubException(device.getName() + " is offline");
         }
 
         // Only switching on adds load, so check the limit only then.

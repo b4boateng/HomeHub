@@ -41,25 +41,23 @@ class DisplayTest {
     }
 
     @Test
-    void stateOfASpeakerShowsVolumeAndPlayback() {
-        SmartSpeaker s = new SmartSpeaker("s1", "Kitchen Speaker", "Sonos", true, "Kitchen", "One", 15, 20, false, "");
-        s.play();
-        display.state(s);
+    void stateOfAMediaPlayerShowsVolumeAndPlayback() {
+        MediaPlayer p = new MediaPlayer("s1", "Kitchen Speaker", "Sonos", true, "Kitchen", "One", 15, 20, false);
+        p.play();
+        display.state(p);
         assertEquals("Kitchen Speaker: ON, volume 20, PLAYING", shown());
     }
 
     @Test
-    void stateOfAMutedSpeakerSaysSo() {
-        SmartSpeaker s = new SmartSpeaker("s1", "Kitchen Speaker", "Sonos", true, "Kitchen", "One", 15, 20, true, "");
-        display.state(s);
-        assertTrue(shown().contains("(muted)"), shown());
+    void aStoppedMediaPlayerShowsStop() {
+        display.state(new MediaPlayer("t1", "Living Room TV", "Samsung", true, "Living", "QN90", 120, 20, false));
+        assertEquals("Living Room TV: ON, volume 20, STOP", shown());
     }
 
     @Test
-    void stateOfATvShowsVolumeChannelAndPlayback() {
-        SmartTv tv = new SmartTv("t1", "Living Room TV", "Samsung", true, "Living", "QN90", 120, 20, false, "", 3);
-        display.state(tv);
-        assertEquals("Living Room TV: ON, volume 20, channel 3, STOP", shown());
+    void stateOfAMutedMediaPlayerSaysSo() {
+        display.state(new MediaPlayer("s1", "Kitchen Speaker", "Sonos", true, "Kitchen", "One", 15, 20, true));
+        assertTrue(shown().contains("(muted)"), shown());
     }
 
     @Test

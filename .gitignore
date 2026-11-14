@@ -1,4 +1,4 @@
-﻿# Build output (Maven regenerates all of this)
+# Build output (Maven regenerates all of this)
 target/
 out/
 *.class

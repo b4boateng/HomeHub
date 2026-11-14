@@ -9,17 +9,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 // Reads a CSV file and turns each row into an object.
-public abstract class CsvLoader<T> implements DataLoader<T> {
+public abstract class CsvLoader<T> {
 
     private final int columns;
 
     protected CsvLoader(int columns) {
+        if (columns <= 0) {
+            throw new IllegalArgumentException("Column count must be positive but was " + columns);
+        }
         this.columns = columns;
     }
 
     protected abstract T parseRow(String[] cells);
 
-    @Override
     public List<T> load(Path path) {
         String file = path.getFileName().toString();
 

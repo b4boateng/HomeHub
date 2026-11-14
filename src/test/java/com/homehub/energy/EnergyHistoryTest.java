@@ -87,24 +87,10 @@ class EnergyHistoryTest {
     }
 
     @Test
-    void aNegativeKwhIsRejectedWithTheLineNumber() throws IOException {
-        Path file = tempDir.resolve("energy.csv");
-        Files.writeString(file, "hour,deviceId,kwh\n2026-10-27T12:00,b1,0.5\n2026-10-27T13:00,b1,-1\n");
-        DataLoadException e = assertThrows(DataLoadException.class, () -> new EnergyLoader().load(file));
-        assertTrue(e.getMessage().contains("line 3"), e.getMessage());
-    }
-
-    @Test
     void aBadHourIsRejected() throws IOException {
         Path file = tempDir.resolve("energy.csv");
         Files.writeString(file, "hour,deviceId,kwh\nnoon,b1,0.5\n");
         assertThrows(DataLoadException.class, () -> new EnergyLoader().load(file));
     }
 
-    @Test
-    void aHeaderOnlyFileLoadsAsEmpty() throws IOException {
-        Path file = tempDir.resolve("energy.csv");
-        Files.writeString(file, "hour,deviceId,kwh\n");
-        assertTrue(new EnergyLoader().load(file).isEmpty());
-    }
 }

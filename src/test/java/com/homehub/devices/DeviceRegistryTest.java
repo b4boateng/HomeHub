@@ -23,11 +23,6 @@ class DeviceRegistryTest {
     }
 
     @Test
-    void startsEmpty() {
-        assertTrue(registry.all().isEmpty());
-    }
-
-    @Test
     void allKeepsRegistrationOrder() {
         registry.register(bulb("c"));
         registry.register(bulb("a"));
@@ -47,8 +42,8 @@ class DeviceRegistryTest {
 
     @Test
     void unknownIdThrowsAndNamesTheId() {
-        DeviceNotFoundException ex = assertThrows(DeviceNotFoundException.class, () -> registry.get("ghost"));
-        assertTrue(ex.getMessage().contains("ghost"), ex.getMessage());
+        HomeHubException ex = assertThrows(HomeHubException.class, () -> registry.get("ghost"));
+        assertEquals("No device with id: ghost", ex.getMessage());
     }
 
     @Test

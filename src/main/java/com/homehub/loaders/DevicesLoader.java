@@ -13,21 +13,26 @@ import java.util.List;
 // Reads devices.csv and creates the right device type for each row.
 public class DevicesLoader extends CsvLoader<Devices> {
 
+    // Every device type devices.csv may use. The console offers exactly these, so the two cannot drift apart.
+    public static final List<String> TYPES = List.of("BULB", "TV", "SPEAKER", "LOCK", "MOTION");
+
     private static final int START_BRIGHTNESS = 50;
     private static final int START_COLOR_TEMPERATURE = 128;
     private static final int START_VOLUME = 20;
-    private static final int START_CHANNEL = 1;
     private static final String START_LOCK_CODE = "0000";
     private static final int START_BATTERY = 100;
-    private static final int START_HUMIDITY = 50;
-    private static final int START_OXYGEN = 21;
-    private static final int START_CARBON_MONOXIDE = 0;
-    private static final int START_CARBON_DIOXIDE = 400;
-    private static final int START_AIR_TEMPERATURE = 21;
-    private static final int START_PM25 = 5;
+
+    private static final int FIELDS = 8;
 
     public DevicesLoader() {
-        super(8);
+        super(FIELDS);
+    }
+
+    // load() already checks the column count; this guards the paths that hand in an array directly.
+    private static void requireAllFields(String[] cells) {
+        if (cells == null || cells.length != FIELDS) {
+            throw new IllegalArgumentException("A device requires exactly " + FIELDS + " fields");
+        }
     }
 
     // Builds one device from the same 8 cells a devices.csv row has (type,id,name,brand,model,room,watts,online).
@@ -37,6 +42,7 @@ public class DevicesLoader extends CsvLoader<Devices> {
 
     // Adds one row to the end of devices.csv, in the same 8-column format that load() reads.
     public void append(Path path, String[] cells) {
+        requireAllFields(cells);
         for (String cell : cells) {
             if (cell.contains(",")) {
                 throw new IllegalArgumentException("commas are not allowed in '" + cell + "'");
@@ -78,6 +84,7 @@ public class DevicesLoader extends CsvLoader<Devices> {
 
     @Override
     protected Devices parseRow(String[] c) {
+        requireAllFields(c);
         String id = c[1];
         String name = c[2];
         String brand = c[3];
@@ -100,12 +107,9 @@ public class DevicesLoader extends CsvLoader<Devices> {
 
         return switch (c[0]) {
             case "BULB"     -> new SmartBulb(START_BRIGHTNESS, START_COLOR_TEMPERATURE, id, model, name, brand, room, online, watts, "");
-            case "TV"       -> new SmartTv(id, name, brand, online, room, model, watts, START_VOLUME, false, "", START_CHANNEL);
-            case "SPEAKER"  -> new SmartSpeaker(id, name, brand, online, room, model, watts, START_VOLUME, false, "");
+            // A TV and a speaker do the same things, so both are a MediaPlayer.
+            case "TV", "SPEAKER" -> new MediaPlayer(id, name, brand, online, room, model, watts, START_VOLUME, false);
             case "LOCK"     -> new SmartLock(id, name, brand, online, room, model, watts, true, START_LOCK_CODE, START_BATTERY);
-            case "HUMIDITY" -> new HumiditySensor(id, model, name, brand, online, room, watts, START_HUMIDITY);
-            case "AIR"      -> new AirQualityMonitor(id, name, brand, online, room, model, START_OXYGEN, START_CARBON_MONOXIDE,
-                                                     START_CARBON_DIOXIDE, START_AIR_TEMPERATURE, START_PM25, watts);
             case "MOTION"   -> new MotionSensor(id, name, brand, online, room, model, watts);
             default -> throw new IllegalArgumentException("unknown device type '" + c[0] + "'");
         };

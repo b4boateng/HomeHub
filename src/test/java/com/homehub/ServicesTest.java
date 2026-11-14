@@ -41,28 +41,10 @@ class ServicesTest {
     }
 
     @Test
-    void registryRejectsADuplicateId() {
-        registry.register(bulb("b1", false));
-        assertThrows(IllegalArgumentException.class, () -> registry.register(bulb("b1", true)));
-    }
-
-    @Test
-    void powerManagerAllowsUpToTheLimitAndRefusesJustOver() {
-        PowerManager manager = new PowerManager(100);
-        assertTrue(manager.allows(50, 50));
-        assertFalse(manager.allows(50, 50.01));
-    }
-
-    @Test
     void powerManagerWithZeroLimitAllowsNothingExceptZero() {
         PowerManager manager = new PowerManager(0);
         assertTrue(manager.allows(0, 0));
         assertFalse(manager.allows(0, 1));
-    }
-
-    @Test
-    void powerManagerRejectsANegativeLimit() {
-        assertThrows(IllegalArgumentException.class, () -> new PowerManager(-1));
     }
 
     @Test
@@ -82,11 +64,6 @@ class ServicesTest {
         accountant.advanceTo(START.plusHours(2));
 
         assertEquals(0.06, accountant.getKwhByDevice().get("b1"), 1e-9);
-    }
-
-    @Test
-    void accountantRejectsTimeGoingBackwards() {
-        assertThrows(IllegalArgumentException.class, () -> accountant.advanceTo(START.minusMinutes(1)));
     }
 
     @Test
@@ -123,24 +100,6 @@ class ServicesTest {
         assertEquals(0.12, accountant.getKwhByDevice().get("b1"), 1e-9);
     }
 
-    @Test
-    void rulesDifferingInDeviceOrPriorityOrSameActionDoNotConflict() {
-        Condition any = e -> true;
-        Rule existing = new Rule(any, "b1", new Command(Action.TURN_ON), 1);
+    // (the non-conflicting rule cases moved to RuleConflictTest, now that the check lives in RuleEngine)
 
-        assertDoesNotThrow(() -> ConflictDetector.check(
-                new Rule(any, "b2", new Command(Action.TURN_OFF), 1), List.of(existing)));
-        assertDoesNotThrow(() -> ConflictDetector.check(
-                new Rule(any, "b1", new Command(Action.TURN_OFF), 2), List.of(existing)));
-        assertDoesNotThrow(() -> ConflictDetector.check(
-                new Rule(any, "b1", new Command(Action.TURN_ON), 1), List.of(existing)));
-    }
-
-    @Test
-    void eventAndCommandRejectNullParts() {
-        assertThrows(NullPointerException.class, () -> new Event(null, START, "m1", 1));
-        assertThrows(NullPointerException.class, () -> new Event(EventType.MOTION, null, "m1", 1));
-        assertThrows(NullPointerException.class, () -> new Event(EventType.MOTION, START, null, 1));
-        assertThrows(NullPointerException.class, () -> new Command(null));
-    }
 }

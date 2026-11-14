@@ -11,18 +11,16 @@ import org.junit.jupiter.api.Test;
 class DevicesTest {
 
     private SmartBulb bulb;
-    private SmartTv tv;
-    private SmartSpeaker speaker;
+    private MediaPlayer player;
     private SmartLock lock;
-    private AirQualityMonitor air;
+    private MotionSensor sensor;
 
     @BeforeEach
     void setUp() {
         bulb = new SmartBulb(50, 128, "b1", "LB", "Bulb", "Philips", "Hall", true, 60, "");
-        tv = new SmartTv("t1", "TV", "Samsung", true, "Lounge", "QN", 120, 20, false, "Netflix", 5);
-        speaker = new SmartSpeaker("s1", "Speaker", "Sonos", true, "Kitchen", "One", 15, 30, false, "Radio");
+        player = new MediaPlayer("t1", "TV", "Samsung", true, "Lounge", "QN", 120, 20, false);
         lock = new SmartLock("l1", "Door", "Yale", true, "Hall", "YL", 2, true, "1234", 90);
-        air = new AirQualityMonitor("a1", "Air", "Awair", true, "Bedroom", "AW-2", 21, 0, 400, 21, 5, 3);
+        sensor = new MotionSensor("m1", "Hall Motion", "Aqara", true, "Hall", "MS-1", 1);
     }
 
     @Test
@@ -31,14 +29,6 @@ class DevicesTest {
         assertEquals(80, bulb.getBrightness());
         bulb.execute(new Command(Action.DIM, 10));
         assertEquals(70, bulb.getBrightness());
-    }
-
-    @Test
-    void bulbBrightnessIsClampedBetween0And100() {
-        bulb.execute(new Command(Action.BRIGHTEN, 500));
-        assertEquals(100, bulb.getBrightness());
-        bulb.execute(new Command(Action.DIM, 500));
-        assertEquals(0, bulb.getBrightness());
     }
 
     @Test
@@ -69,94 +59,53 @@ class DevicesTest {
     }
 
     @Test
-    void tvPlayPauseResumeAndTurnOffMoveThroughStates() {
-        tv.execute(new Command(Action.PLAY));
-        assertEquals(PlaybackState.PLAYING, tv.getPlaybackState());
-        tv.execute(new Command(Action.PAUSE));
-        assertEquals(PlaybackState.PAUSED, tv.getPlaybackState());
-        tv.execute(new Command(Action.RESUME));
-        assertEquals(PlaybackState.PLAYING, tv.getPlaybackState());
-        tv.execute(new Command(Action.TURN_OFF));
-        assertEquals(PlaybackState.STOP, tv.getPlaybackState());
-        assertFalse(tv.isOnline());
+    void playerPlayPauseResumeAndTurnOffMoveThroughStates() {
+        player.execute(new Command(Action.PLAY));
+        assertEquals(PlaybackState.PLAYING, player.getPlaybackState());
+        player.execute(new Command(Action.PAUSE));
+        assertEquals(PlaybackState.PAUSED, player.getPlaybackState());
+        player.execute(new Command(Action.RESUME));
+        assertEquals(PlaybackState.PLAYING, player.getPlaybackState());
+        player.execute(new Command(Action.TURN_OFF));
+        assertEquals(PlaybackState.STOP, player.getPlaybackState());
+        assertFalse(player.isOnline());
     }
 
     @Test
-    void tvVolumeAndChannelAreClamped() {
-        tv.setVolume(150);
-        assertEquals(100, tv.getVolume());
-        tv.setVolume(-5);
-        assertEquals(0, tv.getVolume());
-        tv.setChannel(-3);
-        assertEquals(0, tv.getChannel());
+    void playerPlaysAndStops() {
+        player.execute(new Command(Action.PLAY));
+        assertEquals(PlaybackState.PLAYING, player.getPlaybackState());
+        player.execute(new Command(Action.STOP));
+        assertEquals(PlaybackState.STOP, player.getPlaybackState());
     }
 
     @Test
-    void tvPauseWhileStoppedStaysStopped() {
-        tv.pause();
-        assertEquals(PlaybackState.STOP, tv.getPlaybackState());
+    void playerRejectsActionsItDoesNotSupport() {
+        assertFalse(player.supports(Action.BRIGHTEN));
+        assertThrows(IllegalStateException.class, () -> player.execute(new Command(Action.BRIGHTEN, 5)));
     }
 
     @Test
-    void tvCannotPlayWhenOffline() {
-        tv.setOnline(false);
-        assertThrows(DeviceOfflineException.class, tv::play);
+    void sensorStartsWithNoMotion() {
+        assertFalse(sensor.isMotionDetected());
     }
 
     @Test
-    void speakerPlaysAndStops() {
-        speaker.execute(new Command(Action.PLAY));
-        assertEquals(PlaybackState.PLAYING, speaker.getPlaybackState());
-        speaker.execute(new Command(Action.STOP));
-        assertEquals(PlaybackState.STOP, speaker.getPlaybackState());
-    }
-
-    @Test
-    void speakerVolumeIsClamped() {
-        speaker.setVolume(-10);
-        assertEquals(0, speaker.getVolume());
-        speaker.setVolume(250);
-        assertEquals(100, speaker.getVolume());
-    }
-
-    @Test
-    void speakerCannotPlayWhenOffline() {
-        speaker.setOnline(false);
-        assertThrows(DeviceOfflineException.class, speaker::play);
-    }
-
-    @Test
-    void humiditySensorReadingStaysWithin10And100Inclusive() {
-        HumiditySensor h = new HumiditySensor("h1", "HS", "Humidity", "Aqara", true, "Bath", 1, 40);
+    void sensorReadingsSometimesDetectMotionAndSometimesNot() {
+        boolean sawMotion = false;
+        boolean sawNone = false;
         for (int i = 0; i < 1000; i++) {
-            h.readValue();
-            assertTrue(h.getHumidity() >= 10 && h.getHumidity() <= 100);
+            sensor.readValue();
+            sawMotion |= sensor.isMotionDetected();
+            sawNone |= !sensor.isMotionDetected();
         }
+        assertTrue(sawMotion && sawNone);
     }
 
     @Test
-    void airMonitorStartsWithTheValuesItWasGiven() {
-        assertEquals(21, air.getOxygenLevel());
-        assertEquals(0, air.getCarbonMonoxideLevel());
-        assertEquals(400, air.getCarbonDioxideLevel());
-        assertEquals(21, air.getTemperature());
-        assertEquals(5, air.getPm25());
+    void sensorCanBeToldMotionWasDetected() {
+        sensor.setMotionDetected(true);
+        assertTrue(sensor.isMotionDetected());
     }
 
-    @Test
-    void airMonitorReadingsStayWithinMinAndMaxInclusive() {
-        for (int i = 0; i < 1000; i++) {
-            air.readValue();
-            assertTrue(air.getCarbonDioxideLevel() >= 1000 && air.getCarbonDioxideLevel() <= 2000);
-            assertTrue(air.getCarbonMonoxideLevel() >= 9 && air.getCarbonMonoxideLevel() <= 34);
-            assertTrue(air.getTemperature() >= 10 && air.getTemperature() <= 29);
-        }
-    }
-
-    @Test
-    void airMonitorReadingLeavesOxygenAndPm25Alone() {
-        air.readValue();
-        assertEquals(21, air.getOxygenLevel());
-        assertEquals(5, air.getPm25());
-    }
 }

@@ -4,8 +4,6 @@ BULB,b2,Lounge Light,Philips,LB-100,Living Room,40,false
 TV,t1,Living Room TV,Samsung,QN90,Living Room,120,false
 SPEAKER,s1,Kitchen Speaker,Sonos,One,Kitchen,15,true
 LOCK,l1,Front Door,Yale,YL-5,Hallway,2,true
-HUMIDITY,h1,Bathroom Humidity,Aqara,HS-1,Bathroom,1,true
-AIR,a1,Air Monitor,Awair,AW-2,Bedroom,3,true
 BULB,b3,Hall Lamp,Philips,23456789,Hallway,55.0,true
 BULB,b4,Kitchen Light,Philips,LB-100,Kitchen,18,false
 BULB,b5,Bathroom Light,Philips,LB-100,Bathroom,10,false
@@ -14,8 +12,6 @@ BULB,b7,Desk Bulb,Philips,LB-100,Office,9,false
 TV,t2,Bedroom TV,Samsung,UE43,Bedroom,60,false
 SPEAKER,s2,Living Room Speaker,Sonos,One,Living Room,15,false
 LOCK,l2,Back Door,Yale,YL-5,Kitchen,2,true
-HUMIDITY,h2,Bedroom Humidity,Aqara,HS-1,Bedroom,1,true
-AIR,a2,Kitchen Air Monitor,Awair,AW-2,Kitchen,3,true
 MOTION,m1,Hall Motion Sensor,Aqara,MS-1,Hallway,1,true
 MOTION,m2,Bathroom Motion Sensor,Aqara,MS-1,Bathroom,1,true
 MOTION,m3,Bedroom Motion Sensor,Aqara,MS-1,Bedroom,1,true
